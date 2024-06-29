@@ -29,3 +29,6 @@ class BacktestMarket(Market):
 
     def get_data(self):
         return self.data[:self.index]
+    
+    def __len__(self):
+        return len(self.data)

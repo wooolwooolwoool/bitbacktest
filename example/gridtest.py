@@ -10,11 +10,11 @@ length = 60 * 24 * 7 * 16   # data length
 price_data = random_data(start_price, price_range, length, seed)
 
 # Set parameters
-params = [{"short_window": 30, "long_window": 100, "profit": 1.01, "one_order_quantity": 0.01},
-          {"short_window": 30, "long_window": 500, "profit": 1.01, "one_order_quantity": 0.01},
+params = [{"short_window": 30, "long_window": 100,  "profit": 1.01, "one_order_quantity": 0.01},
+          {"short_window": 30, "long_window": 500,  "profit": 1.01, "one_order_quantity": 0.01},
           {"short_window": 30, "long_window": 1000, "profit": 1.01, "one_order_quantity": 0.01},
-          {"short_window": 60, "long_window": 100, "profit": 1.01, "one_order_quantity": 0.01},
-          {"short_window": 60, "long_window": 500, "profit": 1.01, "one_order_quantity": 0.01},
+          {"short_window": 60, "long_window": 100,  "profit": 1.01, "one_order_quantity": 0.01},
+          {"short_window": 60, "long_window": 500,  "profit": 1.01, "one_order_quantity": 0.01},
           {"short_window": 60, "long_window": 1000, "profit": 1.01, "one_order_quantity": 0.01}]
 start_cash = 1e6
 

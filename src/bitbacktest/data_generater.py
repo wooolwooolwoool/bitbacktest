@@ -1,8 +1,9 @@
 import random
 import numpy as np
 
-def random_data(start_price, price_range, length, seed=111):
-    random.seed(seed)
+def random_data(start_price, price_range, length, seed=None):
+    if seed is not None:
+        random.seed(seed)
     price = start_price
     price_data = []
 
@@ -10,5 +11,4 @@ def random_data(start_price, price_range, length, seed=111):
         price *= 1 + random.uniform(-price_range, price_range)
         price_data.append(price)
     price_data = np.array(price_data)
-    price_data = []
     return price_data
