@@ -11,12 +11,12 @@ from bitbacktest.data_generater import random_data
 seed = 111
 start_price = 1e7           # start price of bit coin
 price_range = 0.001         # Range of price fluctuation
-length = 60 * 24 * 7 * 4   # data length
+length = 60 * 24 * 7 * 4    # data length: 60 min * 24 hour * 7 days * 4weeks
 price_data = random_data(start_price, price_range, length, seed)
 
 # Set parameters
 strategy = MovingAverageCrossoverStrategy()
-param = {"short_window": 30, "long_window": 100,  "profit": 1.01, "one_order_quantity": 0.01}
+param = {"short_window": 30, "long_window": 120,  "profit": 1.01, "one_order_quantity": 0.01}
 start_cash = 1e6
 
 # Prepare Strategy
@@ -55,7 +55,24 @@ fig.update_layout(showlegend=True)
 fig.update_traces(marker=dict(size=12, line=dict(width=2, color='DarkSlateGrey'), opacity=0.8))
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-filename = f"plot_{timestamp}.html"
+filename = f"plot_signal_{timestamp}.html"
 fig.write_html(filename)
 
 print(f"Saved graph to {filename}")
+del fig
+
+fig = make_subplots(specs=[[{"secondary_y": True}]])
+fig.add_trace(go.Scatter(x=np.array(range(len(price_data))), y=price_data, name="Price Data", mode="lines"), secondary_y=False)
+fig.add_trace(go.Scatter(x=np.array(range(len(strategy.backtest_history["total_value_hist"]))), y=strategy.backtest_history["total_value_hist"], name="Total_value"), secondary_y=True)
+fig.update_xaxes(title="Sample number")
+fig.update_yaxes(title="Price (JPY)")
+fig.update_yaxes(title="Total Value (JPY)", secondary_y=True)
+fig.update_layout(font={"family":"Meiryo"})
+fig.update_layout(title="Value History")
+
+filename = f"plot_value_{timestamp}.html"
+fig.write_html(filename)
+
+print(f"Saved graph to {filename}")
+
+print("Finish!!!")

@@ -108,3 +108,6 @@ ENV/
 .vscode/
 .idea/
 
+# Aplication output
+plot*html
+result/
