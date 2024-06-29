@@ -28,6 +28,19 @@ Features
 
 * TODO
 
+
+Install
+--------
+
+.. code-block:: bash
+
+        $ python -m build
+        $ pip install dist/bitbacktest-*.whl
+
+How to use
+--------
+See example folder
+
 Credits
 -------
 
