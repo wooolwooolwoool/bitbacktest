@@ -7,16 +7,16 @@ except:
 from .strategy import *
 
 class Backtester:
-    def __init__(self, strategy_class: Strategy):
-        self.strategy_class = strategy_class
+    def __init__(self, strategy: Strategy):
+        self.strategy = strategy
 
-    def grid_backtest(self, price_data: np.ndarray, params: list, start_cash: int):
+    def grid_backtest(self, params: list, start_cash: int):
         self.grid_backtest_params = params
         self.test_results = []
         for i, param in enumerate(params):
             print(f"Running test {i+1}/{len(params)}")
-            self.strategy_class.reset_all(param, start_cash)
-            portfolio_result = self.strategy_class.backtest(price_data)
+            self.strategy.reset_all(param, start_cash)
+            portfolio_result = self.strategy.backtest()
             self.test_results.append(portfolio_result)
         return self.test_results
 
