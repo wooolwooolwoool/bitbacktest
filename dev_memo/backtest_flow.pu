@@ -1,0 +1,25 @@
+@startuml
+
+actor Trader
+participant "Strategy" as Strategy
+participant "Market" as Market
+
+Trader -> Strategy: Set parameter
+loop
+    activate Strategy
+    Strategy -> Market: Request Market Data
+    activate Market
+    Market --> Strategy: Provide Market Data
+    deactivate Market
+
+    Strategy -> Strategy: Generate Signals
+
+    Strategy -> Market: Place Order
+    activate Market
+    Market --> Strategy: Confirm Order
+    deactivate Market
+end
+Strategy --> Trader: Notify Order Placed
+deactivate Strategy
+
+@enduml
