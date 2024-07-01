@@ -134,3 +134,60 @@ class MovingAverageCrossoverStrategy(Strategy):
     def execute_order(self, price, signal):
         if signal in ['Buy', "Sell"]:
             self.market.execute_order(signal, self.one_order_quantity)
+
+class MACDStrategy(Strategy):
+    def reset_param(self, param):
+        self.short_window = param["short_window"]
+        self.long_window = param["long_window"]
+        self.signal_window = param["signal_window"]
+        self.one_order_quantity = param["one_order_quantity"]
+        self.count = 0
+
+        self.prices = []
+        self.emashort_values = []
+        self.emalong_values = []
+        self.macd_values = []
+        self.signal_line_values = []
+
+    def _calculate_ema(self, current_price, previous_ema, window):
+        alpha = 2 / (window + 1.0)
+        return alpha * current_price + (1 - alpha) * previous_ema
+    
+    def generate_signals(self, price):
+        self.prices.append(price)
+
+        if len(self.prices) == 1:
+            # Initialize
+            emashort = emalong = price
+            macd = signal_line = 0.0
+        else:
+            # calcurate EMA
+            emashort = self._calculate_ema(price, self.emashort_values[-1], self.short_window)
+            emalong = self._calculate_ema(price, self.emalong_values[-1], self.long_window)
+
+            # calcurate MACD
+            macd = emashort - emalong
+
+            # calucurate signal line
+            if len(self.macd_values) == 0:
+                signal_line = macd
+            else:
+                signal_line = self._calculate_ema(macd, self.signal_line_values[-1], self.signal_window)
+
+        self.emashort_values.append(emashort)
+        self.emalong_values.append(emalong)
+        self.macd_values.append(macd)
+        self.signal_line_values.append(signal_line)
+
+        # generate signal
+        signal = None
+        if len(self.macd_values) > 1:
+            if self.macd_values[-2] <= self.signal_line_values[-2] and macd > signal_line:
+                signal = "Buy"
+            elif self.macd_values[-2] >= self.signal_line_values[-2] and macd < signal_line:
+                signal = "Sell"
+        return signal
+    
+    def execute_order(self, price, signal):
+        if signal in ['Buy', "Sell"]:
+            self.market.execute_order(signal, self.one_order_quantity)
