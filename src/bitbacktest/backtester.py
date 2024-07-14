@@ -10,12 +10,12 @@ class Backtester:
     def __init__(self, strategy: Strategy):
         self.strategy = strategy
 
-    def grid_backtest(self, params: list, start_cash: int):
+    def grid_backtest(self, params: list, start_cash: int, start_coin: float = 0):
         self.grid_backtest_params = params
         self.test_results = []
         for i, param in enumerate(params):
             print(f"Running test {i+1}/{len(params)}")
-            self.strategy.reset_all(param, start_cash)
+            self.strategy.reset_all(param, start_cash, start_coin)
             portfolio_result = self.strategy.backtest()
             self.test_results.append(portfolio_result)
         return self.test_results

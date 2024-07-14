@@ -4,22 +4,27 @@ actor Trader
 participant "Strategy" as Strategy
 participant "Market" as Market
 
-Trader -> Strategy: Set parameter
+Trader -> Market: Set Price data
+activate Market
+
+Trader -> Strategy: Set Parameter \nand cash
+activate Strategy
+Strategy -> Market: Reset portofolio
+
+Trader -> Strategy: Start backtest
 loop
-    activate Strategy
-    Strategy -> Market: Request Market Data
-    activate Market
-    Market --> Strategy: Provide Market Data
-    deactivate Market
+    
+    Strategy -> Market: Update index
+    Strategy -> Market: Request \nCurrent Price
+    Market --> Strategy: Current Price
 
     Strategy -> Strategy: Generate Signals
 
     Strategy -> Market: Place Order
-    activate Market
-    Market --> Strategy: Confirm Order
-    deactivate Market
+    Market -> Market: Try execute Oder
+    Market --> Strategy: Order Result
 end
-Strategy --> Trader: Notify Order Placed
+Strategy --> Trader: Backtest Result
 deactivate Strategy
 
 @enduml

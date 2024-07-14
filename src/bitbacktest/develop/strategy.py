@@ -27,8 +27,8 @@ class MACForcusBuyStrategy(Strategy):
         else:
             return None
 
-    def execute_order(self, price, signal):
+    def place_market_order(self, price, signal):
         if signal == 'Buy':
-            success = self.market.execute_order('Buy', self.one_order_quantity)
+            success = self.market.place_market_order('Buy', self.one_order_quantity)
             if success:
-                self.market.add_order("Sell", self.one_order_quantity, price * self.profit)
+                self.market.place_limit_order("Sell", self.one_order_quantity, price * self.profit)

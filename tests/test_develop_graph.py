@@ -2,9 +2,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 
-from bitbacktest.strategy import MovingAverageCrossoverStrategy, MACDStrategy, MACD_re_Strategy
-from bitbacktest.market import BacktestMarket
-from bitbacktest.data_generater import random_data
+import sys
+sys.path.append(".")
+from src.bitbacktest.strategy import MovingAverageCrossoverStrategy, 
+from src.bitbacktest.market import BacktestMarket
+from src.bitbacktest.data_generater import random_data
 
 # Generate data for test
 seed = 111
@@ -15,12 +17,13 @@ price_data = random_data(start_price, price_range, length, seed)
 
 # Set parameters
 market = BacktestMarket(price_data)
-strategy = MACDStrategy(market)
-param = {"short_window": 12, "long_window": 26, "signal_window": 9, "one_order_quantity": 0.01}
+strategy = MovingAverageCrossoverStrategy(market)
+param = {"short_window": 60, "long_window": 720,  "profit": 1.01, "one_order_quantity": 0.01}
 start_cash = 1e6
+start_coin = 0.1
 
 # Prepare Strategy
-strategy.reset_all(param, start_cash)
+strategy.reset_all(param, start_cash, start_coin)
 
 # Execute backtest
 portfolio_result = strategy.backtest()
@@ -35,28 +38,16 @@ exe_buy_signals_pos = [signal[0] for signal in strategy.backtest_history["execut
 
 short_window = param["short_window"]
 long_window = param["long_window"]
-signal_window = param["signal_window"]
-
-def ema(data, window):
-    alpha = 2 / (window + 1.0)
-    ema_data = np.zeros_like(data)
-    ema_data[0] = data[0]
-    for i in range(1, len(data)):
-        ema_data[i] = alpha * data[i] + (1 - alpha) * ema_data[i-1]
-    return ema_data
-
-emashort = ema(price_data, short_window)
-emalong = ema(price_data, long_window)
-macd = emashort - emalong
-signal_line = ema(macd, signal_window)
+short_mean = np.convolve(price_data, np.ones(short_window)/short_window, mode="full")[short_window:len(price_data)]
+long_mean = np.convolve(price_data, np.ones(long_window)/long_window, mode="full")[long_window:len(price_data)]
 
 fig = make_subplots(specs=[[{"secondary_y": True}]])
-#fig.add_trace(go.Scatter(x=np.array(range(len(strategy.backtest_history["total_pos_hist"]))), y=strategy.backtest_history["total_pos_hist"], name="Position"), secondary_y=True)
 fig.add_trace(go.Scatter(x=np.array(range(len(price_data))), y=price_data, name="Price Data", mode="lines"))
-fig.add_trace(go.Scatter(x=np.array(range(len(macd))), y=macd, name="MACD", mode="lines"), secondary_y=True)
-fig.add_trace(go.Scatter(x=np.array(range(len(signal_line))), y=signal_line, name="Signal Line", mode="lines"), secondary_y=True)
+fig.add_trace(go.Scatter(x=np.array(range(len(long_mean)))+long_window, y=long_mean, name="long_mean", mode="lines"))
+fig.add_trace(go.Scatter(x=np.array(range(len(short_mean)))+short_window, y=short_mean, name="short_mean", mode="lines"))
 fig.add_trace(go.Scatter(x=np.array(buy_signals_pos), y=buy_signals, name="buy_signals", mode="markers"))
 fig.add_trace(go.Scatter(x=np.array(exe_buy_signals_pos), y=exe_buy_signals, name="exe_buy_signals", mode="markers"))
+fig.add_trace(go.Scatter(x=np.array(range(len(strategy.backtest_history["total_pos_hist"]))), y=strategy.backtest_history["total_pos_hist"], name="Position"), secondary_y=True)
 
 fig.update_xaxes(title="Sample number")
 fig.update_yaxes(title="Price (JPY)")
