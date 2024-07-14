@@ -1,23 +1,8 @@
 import numpy as np
-import tqdm
+from tqdm import tqdm
 from abc import ABC, abstractmethod
 
 from .market import *
-
-
-def in_notebook():
-    try:
-        from IPython import get_ipython
-        if 'IPKernelApp' not in get_ipython().config:
-            return False
-    except:
-        return False
-    return True
-
-if in_notebook():
-    from tqdm.notebook import tqdm
-else:
-    from tqdm import tqdm
 
 
 class Strategy(ABC):
@@ -26,6 +11,7 @@ class Strategy(ABC):
     Args:
         ABC (_type_): _description_
     """
+
     def __init__(self, market: Market):
         self.market = market
 
@@ -80,7 +66,7 @@ class Strategy(ABC):
             signal (str): Trade Signal
         """
         pass
-    
+
     def backtest(self):
         """Running a back test
         Backtest flow is
@@ -103,26 +89,35 @@ class Strategy(ABC):
             self.market.check_order()
             self.market.save_history(price)
         return self.market.portfolio
-    
+
     @property
     def backtest_history(self):
         return self.market.hist
 
+
 class MovingAverageCrossoverStrategy(Strategy):
+
     def reset_param(self, param):
         super().reset_param(param)
         self.dynamic["price_hist"] = np.array([])
 
     def generate_signals(self, price):
-        self.dynamic["price_hist"] = np.append(self.dynamic["price_hist"], price)
+        self.dynamic["price_hist"] = np.append(self.dynamic["price_hist"],
+                                               price)
         if len(self.dynamic["price_hist"]) < (self.static["long_window"] + 1):
             return None  # Not enough data for calculation
 
-        short_mavg = np.mean(self.dynamic["price_hist"][-self.static["short_window"]:])
-        long_mavg = np.mean(self.dynamic["price_hist"][-self.static["long_window"]:])
+        short_mavg = np.mean(
+            self.dynamic["price_hist"][-self.static["short_window"]:])
+        long_mavg = np.mean(
+            self.dynamic["price_hist"][-self.static["long_window"]:])
 
-        short_mavg_old = np.mean(self.dynamic["price_hist"][-1 * (self.static["short_window"] + 1):-1])
-        long_mavg_old = np.mean(self.dynamic["price_hist"][-1 * (self.static["long_window"] + 1):-1])
+        short_mavg_old = np.mean(
+            self.dynamic["price_hist"][-1 *
+                                       (self.static["short_window"] + 1):-1])
+        long_mavg_old = np.mean(
+            self.dynamic["price_hist"][-1 *
+                                       (self.static["long_window"] + 1):-1])
 
         self.dynamic["price_hist"] = np.delete(self.dynamic["price_hist"], 0)
 
@@ -131,13 +126,16 @@ class MovingAverageCrossoverStrategy(Strategy):
         elif short_mavg < long_mavg and short_mavg_old > long_mavg_old:
             return 'Sell'
         else:
-            return None
+            return ""
 
     def execute_trade(self, price, signal):
         if signal in ['Buy', "Sell"]:
-            self.market.place_market_order(signal, self.static["one_order_quantity"])
+            self.market.place_market_order(signal,
+                                           self.static["one_order_quantity"])
+
 
 class MACDStrategy(Strategy):
+
     def reset_param(self, param):
         super().reset_param(param)
         self.dynamic["count"] = 0
@@ -150,7 +148,7 @@ class MACDStrategy(Strategy):
     def _calculate_ema(self, current_price, previous_ema, window):
         alpha = 2 / (window + 1.0)
         return alpha * current_price + (1 - alpha) * previous_ema
-    
+
     def generate_signals(self, price):
         if self.dynamic["prices"] is None:
             # Initialize
@@ -158,8 +156,12 @@ class MACDStrategy(Strategy):
             macd = signal_line = 0.0
         else:
             # calcurate EMA
-            emashort = self._calculate_ema(price, self.dynamic["emashort_values"], self.static["short_window"])
-            emalong = self._calculate_ema(price, self.dynamic["emalong_values"], self.static["long_window"])
+            emashort = self._calculate_ema(price,
+                                           self.dynamic["emashort_values"],
+                                           self.static["short_window"])
+            emalong = self._calculate_ema(price,
+                                          self.dynamic["emalong_values"],
+                                          self.static["long_window"])
 
             # calcurate MACD
             macd = emashort - emalong
@@ -168,7 +170,9 @@ class MACDStrategy(Strategy):
             if self.dynamic["macd_values"] == 0:
                 signal_line = macd
             else:
-                signal_line = self._calculate_ema(macd, self.dynamic["signal_line_values"], self.static["signal_window"])
+                signal_line = self._calculate_ema(
+                    macd, self.dynamic["signal_line_values"],
+                    self.static["signal_window"])
 
         self.dynamic["prices"] = price
 
@@ -176,18 +180,22 @@ class MACDStrategy(Strategy):
         self.dynamic["emalong_values"] = emalong
         self.dynamic["macd_values_old"] = self.dynamic["macd_values"]
         self.dynamic["macd_values"] = macd
-        self.dynamic["signal_line_values_old"] = self.dynamic["signal_line_values"]
+        self.dynamic["signal_line_values_old"] = self.dynamic[
+            "signal_line_values"]
         self.dynamic["signal_line_values"] = signal_line
 
         # generate signal
-        signal = None
+        signal = ""
         if self.dynamic["macd_values_old"] is not None:
-            if self.dynamic["macd_values_old"] <= self.dynamic["signal_line_values_old"] and macd > signal_line:
+            if self.dynamic["macd_values_old"] <= self.dynamic[
+                    "signal_line_values_old"] and macd > signal_line:
                 signal = "Buy"
-            elif self.dynamic["macd_values_old"] >= self.dynamic["signal_line_values_old"] and macd < signal_line:
+            elif self.dynamic["macd_values_old"] >= self.dynamic[
+                    "signal_line_values_old"] and macd < signal_line:
                 signal = "Sell"
         return signal
-    
+
     def execute_trade(self, price, signal):
         if signal in ['Buy', "Sell"]:
-            self.market.place_market_order(signal, self.static["one_order_quantity"])
+            self.market.place_market_order(signal,
+                                           self.static["one_order_quantity"])

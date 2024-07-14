@@ -1,20 +1,18 @@
+# Combined Python file
+# Import statements
+from .market import *
 from abc import ABC, abstractmethod
+from datetime import datetime
+from tqdm import tqdm
 from typing import Literal
-import numpy as np
-import json
-import requests
-import time
 import hashlib
 import hmac
-from datetime import datetime
+import json
+import numpy as np
+import requests
+import time
 
-class Order():
-    def __init__(self, side, quantity, price):
-        self.side = side
-        self.quantity = quantity
-        self.price = price
-        self.order_id = datetime.now().timestamp()
-
+# Function and Class definitions
 class Market(ABC):
     def __init__(self):
         self.portfolio = {}
@@ -82,78 +80,6 @@ class Market(ABC):
         self.portfolio['total_value'] = self.portfolio['cash'] + self.portfolio['position'] * price
         self.hist["total_value_hist"].append(self.portfolio['total_value'])
         self.hist["total_pos_hist"].append(self.portfolio['position'])
-
-class BacktestMarket(Market):
-    def __init__(self, data: np.ndarray):
-        super().__init__()
-        self.data = data
-        self.index = 0
-
-    def set_current_index(self, index: int):
-        self.index = index
-
-    def get_current_price(self):
-        return self.data[self.index]
-
-    def get_price_hist(self):
-        return self.data[:self.index]
-
-    def __len__(self):
-        return len(self.data)
-    
-    def get_open_orders(self):
-        return self.order
-
-    def cancel_order(self, order_id: int) -> bool:
-        orders = self.get_open_orders()
-        for order in orders:
-            if order.order_id == order_id:
-                self.order.remove(order)
-                return True
-        return False
-
-    def _execute_buy_order(self, quantity: float, price: float) -> bool:
-        if self.portfolio['cash'] >= quantity * price:
-            self.portfolio['cash'] -= quantity * price
-            self.portfolio['position'] += quantity
-            self.portfolio["trade_count"] += 1
-            return True  # Buy order executed successfully
-        else:
-            return False  # Insufficient funds
-
-    def _execute_sell_order(self, quantity: float, price: float) -> bool:
-        if self.portfolio['position'] >= quantity:
-            self.portfolio['cash'] += quantity * price
-            self.portfolio['position'] -= quantity
-            self.portfolio["trade_count"] += 1
-            return True  # Sell order executed successfully
-        else:
-            return False  # Insufficient funds
-
-    def place_market_order(self, side: Literal['Buy', 'Sell'], quantity: float) -> bool:
-        price = self.get_current_price()
-        self.hist["signals"][side].append((self.index, price))
-        if side == 'Buy':
-            ret = self._execute_buy_order(quantity, price)
-        elif side == 'Sell':
-            ret = self._execute_sell_order(quantity, price)
-        else:
-            ret = False
-        if ret:
-            self.hist["execute_signals"][side].append((self.index, price))
-        return ret
-    
-    def place_limit_order(self, side: Literal['Buy', 'Sell'], quantity: float, price: float) -> bool:
-        self.order.append(Order(side, quantity, price))
-        return True
-        
-    def check_order(self):
-        price = self.get_current_price()
-        for order in self.order:
-            if (order.side == "Sell" and price >= order.price) or \
-               (order.side == "Buy" and price <= order.price):
-                if self.place_market_order(order.side, order.quantity):
-                    self.order.remove(order)
 
 class BitflyerMarket(Market):
     def __init__(self):
@@ -250,4 +176,132 @@ class BitflyerMarket(Market):
         response = requests.get(API_URL + endpoint, headers=headers, params=params)
         orders = response.json()
         return orders
-    
+    class Strategy(ABC):
+    """Trading Strategy
+
+    Args:
+        ABC (_type_): _description_
+    """
+
+    def __init__(self, market: Market):
+        self.market = market
+
+    @abstractmethod
+    def reset_param(self, param: dict):
+        """Reset parameter
+        Reset parameters. Implement the process of setting parameters in this method.
+        "self.static" are values to set as AWS env.
+        "self.dynamic" are values to save to DynamoDB.
+
+        Args:
+            param (dict): parameter
+        """
+        self.static = param
+        self.dynamic = {}
+        pass
+
+    def reset_all(self, param: dict, start_cash: int, start_coin: float = 0):
+        """Reset parameter and portfolio
+        Must be called before the backtest is executed.
+
+        Args:
+            param (dict): parameter
+            start_cash (int): start cash
+            start_coin (float): start coin
+        """
+        self.reset_param(param)
+        self.market.reset_portfolio(start_cash, start_coin)
+        self.dynamic["count"] = 0
+
+    @abstractmethod
+    def generate_signals(self, price: float) -> str:
+        """Generate Trade Signal
+        Generate trade signal based on price, parameters, etc.
+        Implemente The logic to generate signals.
+
+        Args:
+            price (float): Current bitcoin price
+
+        Returns:
+            str: Trade signal (ex. "Buy", "Sell")
+        """
+        return ""
+
+    @abstractmethod
+    def execute_trade(self, price: float, signal: str):
+        """Executing an trade Based on a Signal
+        Implements the logic to execute an order 
+
+        Args:
+            price (float): Current bitcoin price
+            signal (str): Trade Signal
+        """
+        pass
+
+    def backtest(self):
+        """Running a back test
+        Backtest flow is
+        1. get current price
+        2. generate_signals() method
+        3. execute_trade() method
+        4. save data and go to next
+
+        Returns:
+            _type_: Result of backtest
+        """
+        self.dynamic["count"] = 0
+        self.market.set_current_index(0)
+        for _ in tqdm(range(len(self.market))):
+            self.dynamic["count"] += 1
+            self.market.set_current_index(self.dynamic["count"] - 1)
+            price = self.market.get_current_price()
+            signal = self.generate_signals(price)
+            self.execute_trade(price, signal)
+            self.market.check_order()
+            self.market.save_history(price)
+        return self.market.portfolio
+
+    @property
+    def backtest_history(self):
+        return self.market.hist
+
+
+class MovingAverageCrossoverStrategy(Strategy):
+
+    def reset_param(self, param):
+        super().reset_param(param)
+        self.dynamic["price_hist"] = np.array([])
+
+    def generate_signals(self, price):
+        self.dynamic["price_hist"] = np.append(self.dynamic["price_hist"],
+                                               price)
+        if len(self.dynamic["price_hist"]) < (self.static["long_window"] + 1):
+            return None  # Not enough data for calculation
+
+        short_mavg = np.mean(
+            self.dynamic["price_hist"][-self.static["short_window"]:])
+        long_mavg = np.mean(
+            self.dynamic["price_hist"][-self.static["long_window"]:])
+
+        short_mavg_old = np.mean(
+            self.dynamic["price_hist"][-1 *
+                                       (self.static["short_window"] + 1):-1])
+        long_mavg_old = np.mean(
+            self.dynamic["price_hist"][-1 *
+                                       (self.static["long_window"] + 1):-1])
+
+        self.dynamic["price_hist"] = np.delete(self.dynamic["price_hist"], 0)
+
+        if short_mavg > long_mavg and short_mavg_old < long_mavg_old and long_mavg > long_mavg_old:
+            return 'Buy'
+        elif short_mavg < long_mavg and short_mavg_old > long_mavg_old:
+            return 'Sell'
+        else:
+            return ""
+
+    def execute_trade(self, price, signal):
+        if signal in ['Buy', "Sell"]:
+            self.market.place_market_order(signal,
+                                           self.static["one_order_quantity"])
+
+
