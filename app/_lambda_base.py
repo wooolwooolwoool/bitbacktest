@@ -101,9 +101,10 @@ def save_to_dynamodb(table: object, item: dict, partition_key: str):
         partition_key (str): partition key of yuor table
     """
     item_converted = {k: convert_for_dynamodb(v) for k, v in item.items()}
-    item_converted[partition_key] = item[partition_key]
+    item_converted["id"] = partition_key
+    item = json.loads(json.dumps(item_converted))
     
-    table.put_item(Item=item_converted)
+    table.put_item(Item=item)
 
 def read_from_dynamodb(table: object, key_value, partition_key: str) -> dict:
     """read from dynamoDB
@@ -124,56 +125,42 @@ def read_from_dynamodb(table: object, key_value, partition_key: str) -> dict:
     else:
         return None
 
-def get_dynamodb_table(table_name: str, aws_access_key_id: str, aws_secret_access_key: str, region_name: str = 'ap-northeast-1') -> object:
-    """get dynamobd table
-
-    Args:
-        table_name (str): table name of dynamodb
-        aws_access_key_id (str): access key of aws
-        aws_secret_access_key (str): secret access key of aws
-        region_name (str, optional): resion name. Defaults to 'ap-northeast-1'.
-
-    Returns:
-        object: dynamodb table
-    """
-    dynamodb = boto3.resource('dynamodb', region_name=region_name,
-                            aws_access_key_id=aws_access_key_id,
-                            aws_secret_access_key=aws_secret_access_key)
-    return dynamodb.Table(table_name)
-
 def lambda_handler(event, context):
     try:
-        # ビットフライヤーのAPIキーとシークレット
-        API_KEY = os.environ["API_KEY"]
-        API_SECRET = os.environ["API_SECRET"]
-        
-        market = {Market class}()
-        market.set_api_key(API_KEY, API_SECRET)        
-        strategy = {Strategy class}(market)
-        # 環境変数読み込み
-        env_variables = {}
-        for key, value in os.environ.items():
+        if os.environ["TRADE_ENABLE"] == "1":
+            # ビットフライヤーのAPIキーとシークレット
+            API_KEY = os.environ["API_KEY"]
+            API_SECRET = os.environ["API_SECRET"]
+            dynamodb = boto3.resource('dynamodb')
+            table = dynamodb.Table(os.environ["TABLE_NAME"])
+            
+            market = {Market class}()
+            market.set_apikey(API_KEY, API_SECRET)        
+            strategy = {Strategy class}(market)
+            # 環境変数読み込み
+            env_variables = {}
+            for key, value in os.environ.items():
+                try:
+                    # float に変換
+                    env_variables[key] = float(value)
+                except ValueError:
+                    # 変換できない場合はそのまま文字列で保持
+                    env_variables[key] = value
+            strategy.reset_param(env_variables)
             try:
-                # float に変換
-                env_variables[key] = float(value)
-            except ValueError:
-                # 変換できない場合はそのまま文字列で保持
-                env_variables[key] = value
-        strategy.reset_param(env_variables)
-        
-        strategy.dynamic = read_from_dynamodb(os.environ["TABLE_NAME"], os.environ["PARAMS_KEY"])
-        current_price = market.get_cuurent_price()
-        signals = strategy.generate_signals(current_price)
-        strategy.execute_trade(current_price, signals)
-        save_to_dynamodb(os.environ["TABLE_NAME"], strategy.dynamic, os.environ["PARAMS_KEY"])
-        
-        return {
-            'statusCode': 200,
-            'body': json.dumps('')
-        }
+                val = read_from_dynamodb(table, os.environ["PARAMS_KEY"], "id")
+                if val is not None:
+                    strategy.dynamic = val
+            except:
+                pass
+            current_price = market.get_current_price()
+            signals = strategy.generate_signals(current_price)
+            strategy.execute_trade(current_price, signals)
+            save_to_dynamodb(table, strategy.dynamic, os.environ["PARAMS_KEY"])
+
     except:
         traceback.print_exc()
-        return {
-            'statusCode': 500,
-            'body': json.dumps('Error')
-        }
+    return {
+        'statusCode': 200,
+        'body': json.dumps('')
+    }

@@ -60,12 +60,13 @@ if __name__ == "__main__":
                       help="Name of Lambda function")
   parser.add_argument("--lambda_role_arn",
                       type=str,
-                      default="MyIAMrole",
+                      default="arn:aws:iam::xxxxx",
                       help="AWS IAM role ARN for Lambda function")
   args = parser.parse_args()
 
   envs = extract_static_keys_from_file(args.lambda_code_path)
-  envs.extend(["API_KEY", "API_SECRET", "TABLE_NAME", "PARAMS_KEY"])
+  envs.extend(
+      ["API_KEY", "API_SECRET", "TABLE_NAME", "PARAMS_KEY", "TRADE_ENABLE"])
 
   create_cloudformation_template(
       lambda_code_path=args.lambda_code_path,

@@ -64,7 +64,7 @@ def extract_imports_and_definitions(file_path, target_names, logger):
     for line in lines:
         if line.strip().startswith("import ") or line.strip().startswith(
                 "from "):
-            if line not in imports:
+            if line not in imports and "tqdm" not in line:
                 imports.append(line)
         elif re.match(r'^\s*class\s+(\w+)\s*[\(:]', line):
             class_name = re.findall(r'^\s*class\s+(\w+)\s*[\(:]', line)[0]
@@ -193,10 +193,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     classes = []
+    classes.append(args.market_class)
     classes.append(args.strategy_class)
     if args.additional_target_names is not None:
         classes.extend(args.additional_target_names)
-    classes.append(args.market_class)
 
     combine_files(args.directories, tmp_file, classes)
     create_lamda_file(base_file, tmp_file, args.output_file,

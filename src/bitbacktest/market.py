@@ -8,14 +8,18 @@ import hashlib
 import hmac
 from datetime import datetime
 
+
 class Order():
+
     def __init__(self, side, quantity, price):
         self.side = side
         self.quantity = quantity
         self.price = price
         self.order_id = datetime.now().timestamp()
 
+
 class Market(ABC):
+
     def __init__(self):
         self.portfolio = {}
         self.hist = {}
@@ -30,14 +34,28 @@ class Market(ABC):
         pass
 
     def reset_portfolio(self, start_cash: float, start_coin: float):
-        self.portfolio = {"trade_count": 0, 'cash': start_cash, 'position': start_coin, 'total_value': start_cash}
-        self.hist = {"signals": {"Buy": [], "Sell": []},
-                     "execute_signals": {"Buy": [], "Sell": []},
-                     "total_value_hist": [],
-                     "total_pos_hist": []}
+        self.portfolio = {
+            "trade_count": 0,
+            'cash': start_cash,
+            'position': start_coin,
+            'total_value': start_cash
+        }
+        self.hist = {
+            "signals": {
+                "Buy": [],
+                "Sell": []
+            },
+            "execute_signals": {
+                "Buy": [],
+                "Sell": []
+            },
+            "total_value_hist": [],
+            "total_pos_hist": []
+        }
 
     @abstractmethod
-    def place_market_order(self, side: Literal['Buy', 'Sell'], quantity: float) -> bool:
+    def place_market_order(self, side: Literal['Buy', 'Sell'],
+                           quantity: float) -> bool:
         """
         Place a market order
         :param side: Buy or Sell
@@ -47,7 +65,8 @@ class Market(ABC):
         return True
 
     @abstractmethod
-    def place_limit_order(self, side: Literal['Buy', 'Sell'], quantity: float, price: float) -> bool:
+    def place_limit_order(self, side: Literal['Buy', 'Sell'], quantity: float,
+                          price: float) -> bool:
         """
         Place a limit order
         :param side: Buy or Sell
@@ -56,8 +75,12 @@ class Market(ABC):
         :return: True if success, False if failed
         """
         return True
-    
-    def place_order(self, order_type: Literal["Limit", "Market"], side: Literal['Buy', 'Sell'], quantity: float, price: float=-1):
+
+    def place_order(self,
+                    order_type: Literal["Limit", "Market"],
+                    side: Literal['Buy', 'Sell'],
+                    quantity: float,
+                    price: float = -1):
         if order_type == "Limit" and price > 0:
             return self.place_limit_order(side, quantity, price)
         elif order_type == "Market":
@@ -68,7 +91,7 @@ class Market(ABC):
     @abstractmethod
     def get_open_orders(self):
         return self.order
-        
+
     @abstractmethod
     def cancel_order(self, order_id: int) -> bool:
         """
@@ -79,11 +102,14 @@ class Market(ABC):
         return True
 
     def save_history(self, price: float):
-        self.portfolio['total_value'] = self.portfolio['cash'] + self.portfolio['position'] * price
+        self.portfolio['total_value'] = self.portfolio[
+            'cash'] + self.portfolio['position'] * price
         self.hist["total_value_hist"].append(self.portfolio['total_value'])
         self.hist["total_pos_hist"].append(self.portfolio['position'])
 
+
 class BacktestMarket(Market):
+
     def __init__(self, data: np.ndarray):
         super().__init__()
         self.data = data
@@ -100,7 +126,7 @@ class BacktestMarket(Market):
 
     def __len__(self):
         return len(self.data)
-    
+
     def get_open_orders(self):
         return self.order
 
@@ -130,7 +156,8 @@ class BacktestMarket(Market):
         else:
             return False  # Insufficient funds
 
-    def place_market_order(self, side: Literal['Buy', 'Sell'], quantity: float) -> bool:
+    def place_market_order(self, side: Literal['Buy', 'Sell'],
+                           quantity: float) -> bool:
         price = self.get_current_price()
         self.hist["signals"][side].append((self.index, price))
         if side == 'Buy':
@@ -142,11 +169,12 @@ class BacktestMarket(Market):
         if ret:
             self.hist["execute_signals"][side].append((self.index, price))
         return ret
-    
-    def place_limit_order(self, side: Literal['Buy', 'Sell'], quantity: float, price: float) -> bool:
+
+    def place_limit_order(self, side: Literal['Buy', 'Sell'], quantity: float,
+                          price: float) -> bool:
         self.order.append(Order(side, quantity, price))
         return True
-        
+
     def check_order(self):
         price = self.get_current_price()
         for order in self.order:
@@ -155,7 +183,9 @@ class BacktestMarket(Market):
                 if self.place_market_order(order.side, order.quantity):
                     self.order.remove(order)
 
+
 class BitflyerMarket(Market):
+
     def __init__(self):
         super().__init__()
         self.apikey = None
@@ -170,7 +200,8 @@ class BitflyerMarket(Market):
     def place_market_order(self, side, quantity):
         # 成行注文を出す
         if self.apikey is None or self.secret is None:
-            raise ValueError("API key and secret must be set before placing an order.")
+            raise ValueError(
+                "API key and secret must be set before placing an order.")
 
         endpoint = '/v1/me/sendchildorder'
         order_url = self.API_URL + endpoint
@@ -187,9 +218,11 @@ class BitflyerMarket(Market):
         response = requests.post(order_url, headers=headers, data=body)
         return response.json()
 
-    def place_limit_order(self, side: Literal['Buy', 'Sell'], quantity: float, price: float):
+    def place_limit_order(self, side: Literal['Buy', 'Sell'], quantity: float,
+                          price: float):
         if self.apikey is None or self.secret is None:
-            raise ValueError("API key and secret must be set before placing an order.")
+            raise ValueError(
+                "API key and secret must be set before placing an order.")
 
         # 指値注文を出す
         endpoint = '/v1/me/sendchildorder'
@@ -205,24 +238,24 @@ class BitflyerMarket(Market):
         body = json.dumps(order_data)
         headers = self.header('POST', endpoint=endpoint, body=body)
 
-        response = requests.post(order_url, headers=headers, data=body)
-        if responce.code == "200":
+        res = requests.post(order_url, headers=headers, data=body)
+        if res.status_code == "200":
             return True
         else:
             return False
 
-
-    def cancel_order(self, side: Literal['Buy', 'Sell'], order_id: int):
+    def cancel_order(self, order_id: int):
         return True
 
-    def header(method: str, endpoint: str, body: str) -> dict:
+    def header(self, method: str, endpoint: str, body: str) -> dict:
         timestamp = str(time.time())
         if body == '':
             message = timestamp + method + endpoint
         else:
             message = timestamp + method + endpoint + body
-        signature = hmac.new(self.secret.encode('utf-8'), message.encode('utf-8'),
-                            digestmod=hashlib.sha256).hexdigest()
+        signature = hmac.new(self.secret.encode('utf-8'),
+                             message.encode('utf-8'),
+                             digestmod=hashlib.sha256).hexdigest()
         headers = {
             'Content-Type': 'application/json',
             'ACCESS-KEY': self.API_KEY,
@@ -231,10 +264,10 @@ class BitflyerMarket(Market):
         }
         return headers
 
-    def get_open_orders():
+    def get_open_orders(self):
         # 出ている注文一覧を取得
         endpoint = '/v1/me/getchildorders'
-        
+
         params = {
             'product_code': 'BTC_JPY',
             'child_order_state': 'ACTIVE',  # 出ている注文だけを取得
@@ -244,10 +277,18 @@ class BitflyerMarket(Market):
             endpoint_for_header += k + '=' + v
             endpoint_for_header += '&'
         endpoint_for_header = endpoint_for_header[:-1]
-        
-        headers = header('GET', endpoint=endpoint_for_header, body="")
 
-        response = requests.get(API_URL + endpoint, headers=headers, params=params)
+        headers = self.header('GET', endpoint=endpoint_for_header, body="")
+
+        response = requests.get(self.API_URL + endpoint,
+                                headers=headers,
+                                params=params)
         orders = response.json()
         return orders
-    
+
+    def get_current_price(self):
+        # 現在の市場価格を取得
+        ticker_url = f'{self.API_URL}/v1/ticker?product_code={self.product_code}'
+        response = requests.get(ticker_url)
+        price = float(response.json()['ltp'])
+        return price

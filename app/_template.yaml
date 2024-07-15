@@ -20,7 +20,7 @@ Resources:
     Properties:
       FunctionName: !Ref LambdaFunctionName
       Handler: index.lambda_handler
-      Runtime: python3.9
+      Runtime: python3.11
       Role: !Ref LambdaRoleArn
       Code:
         ZipFile: |
@@ -29,6 +29,11 @@ Resources:
         Variables:
 {env_variables}
       Timeout: 120
+      Layers:
+        - arn:aws:lambda:ap-northeast-1:770693421928:layer:Klayers-p311-requests:9
+        - arn:aws:lambda:ap-northeast-1:770693421928:layer:Klayers-p311-numpy:7
+        - arn:aws:lambda:ap-northeast-1:770693421928:layer:Klayers-p311-boto3:12
+        
 
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
