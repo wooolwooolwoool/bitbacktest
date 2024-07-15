@@ -10,16 +10,9 @@ import traceback
 import hashlib
 import hmac
 from datetime import datetime
+import traceback
 
-# ビットフライヤーのAPIキーとシークレット
-API_KEY = os.environ["API_KEY"]
-API_SECRET = os.environ["API_SECRET"]
-
-# APIエンドポイント
-API_URL = 'https://api.bitflyer.jp'
-
-# 注文情報
-product_code = 'BTC_JPY'  # トレード対象の通貨ペア
+{Strategy src}
 
 def convert_numpy_array_to_dynamodb(np_array, chunk_size_kb=400):
     # Numpy配列をバイト列に変換
@@ -148,22 +141,39 @@ def get_dynamodb_table(table_name: str, aws_access_key_id: str, aws_secret_acces
                             aws_secret_access_key=aws_secret_access_key)
     return dynamodb.Table(table_name)
 
-def get_current_price():
-    # 現在の市場価格を取得
-    ticker_url = f'{API_URL}/v1/ticker?product_code={product_code}'
-    response = requests.get(ticker_url)
-    data = response.json()
-    return float(data['ltp'])
-
-def tarde(startegy):
-    startegy.static = os.environ
-    pkey = os.environ["partition_key"]
-    tabel = get_dynamodb_table(os.environ["table_name"])
-    startegy.dynamic = read_from_dynamodb(tabel, os.environ["param_key"], pkey)
-    price = get_current_price()
-    signal = startegy.generate_signals(price)
-    startegy.execute_trade(price, signal)
-    
-    save_to_dynamodb(tabel, startegy.dynamic, pkey)
-
-
+def lambda_handler(event, context):
+    try:
+        # ビットフライヤーのAPIキーとシークレット
+        API_KEY = os.environ["API_KEY"]
+        API_SECRET = os.environ["API_SECRET"]
+        
+        market = {Market class}()
+        market.set_api_key(API_KEY, API_SECRET)        
+        strategy = {Strategy class}(market)
+        # 環境変数読み込み
+        env_variables = {}
+        for key, value in os.environ.items():
+            try:
+                # float に変換
+                env_variables[key] = float(value)
+            except ValueError:
+                # 変換できない場合はそのまま文字列で保持
+                env_variables[key] = value
+        strategy.reset_param(env_variables)
+        
+        strategy.dynamic = read_from_dynamodb(os.environ["TABLE_NAME"], os.environ["PARAMS_KEY"])
+        current_price = market.get_cuurent_price()
+        signals = strategy.generate_signals(current_price)
+        strategy.execute_trade(current_price, signals)
+        save_to_dynamodb(os.environ["TABLE_NAME"], strategy.dynamic, os.environ["PARAMS_KEY"])
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps('')
+        }
+    except:
+        traceback.print_exc()
+        return {
+            'statusCode': 500,
+            'body': json.dumps('Error')
+        }

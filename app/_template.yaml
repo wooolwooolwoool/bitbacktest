@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudFormation template to create a Lambda function with specific environment variables and
+  an EventBridge rule to trigger the Lambda every 5 minutes, initially disabled.
+
+Parameters:
+  LambdaFunctionName:
+    Description: Name of the Lambda function
+    Type: String
+    Default: {lambda_function_name}
+
+  LambdaRoleArn:
+    Description: IAM role ARN for the Lambda function
+    Type: String
+    Default: {lambda_role_arn}
+
+Resources:
+  MyLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref LambdaFunctionName
+      Handler: index.lambda_handler
+      Runtime: python3.9
+      Role: !Ref LambdaRoleArn
+      Code:
+        ZipFile: |
+{lambda_code}
+      Environment:
+        Variables:
+{env_variables}
+      Timeout: 120
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MyLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MyEventRule.Arn
+
+  MyEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: MyEventRule
+      ScheduleExpression: rate(5 minutes)
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt MyLambdaFunction.Arn
+          Id: MyLambdaTarget
+
+Outputs:
+  LambdaFunctionArn:
+    Description: ARN of the created Lambda function
+    Value: !GetAtt MyLambdaFunction.Arn
+
+  EventRuleArn:
+    Description: ARN of the created EventBridge rule
+    Value: !GetAtt MyEventRule.Arn

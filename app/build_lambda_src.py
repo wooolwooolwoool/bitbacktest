@@ -64,13 +64,13 @@ def extract_imports_and_definitions(file_path, target_names, logger):
     for line in lines:
         if line.strip().startswith("import ") or line.strip().startswith(
                 "from "):
-            imports.append(line)
+            if line not in imports:
+                imports.append(line)
         elif re.match(r'^\s*class\s+(\w+)\s*[\(:]', line):
             class_name = re.findall(r'^\s*class\s+(\w+)\s*[\(:]', line)[0]
             if class_name in target_names:
                 inside_class = True
                 current_indent_level = len(line) - len(line.lstrip())
-                print(current_indent_level)
                 current_class_lines.append(line)
                 logger(f"Found class: {class_name}")
                 target_names.remove(class_name)
@@ -80,7 +80,6 @@ def extract_imports_and_definitions(file_path, target_names, logger):
                 definitions.extend(current_class_lines)
                 inside_class = False
                 current_class_lines = []
-                logger(f"End class: {class_name}")
         elif not inside_class and re.match(r'^\s*def\s+(\w+)\s*\(', line):
             func_name = re.findall(r'^\s*def\s+(\w+)\s*\(', line)[0]
             if func_name in target_names:
@@ -91,7 +90,12 @@ def extract_imports_and_definitions(file_path, target_names, logger):
 
     if inside_class:
         definitions.extend(current_class_lines)
+        definitions.append("\n")
+        inside_class = False
+        current_class_lines = []
 
+    if inside_class:
+        definitions.extend(current_class_lines)
     return imports, definitions
 
 
@@ -113,7 +117,7 @@ def combine_files(directory, output_file, target_names):
 
     # Step 2: Get all superclasses
     superclasses = get_all_superclasses(class_hierarchy, target_names)
-    target_names.update(superclasses)
+    target_names.extend(superclasses)
 
     # Step 3: Extract relevant imports and definitions
     for file_path in python_files:
@@ -124,34 +128,76 @@ def combine_files(directory, output_file, target_names):
             all_definitions.extend(definitions)
 
     with open(output_file, 'w', encoding='utf-8') as out_file:
-        out_file.write("# Combined Python file\n")
-        out_file.write("# Import statements\n")
         for imp in sorted(all_imports):
             out_file.write(imp)
-        out_file.write("\n# Function and Class definitions\n")
         for definition in all_definitions:
             out_file.write(definition)
 
 
+def create_lamda_file(base_file, tmp_file, out_file, strategy_class,
+                      market_class):
+    out = []
+    with open(base_file, "r") as f:
+        base = f.readlines()
+
+    for line in base:
+        if "{Strategy src}" in line:
+            with open(tmp_file, "r") as f:
+                for line in f.readlines():
+                    if "import" in line and " ." in line:
+                        # Skip reletive imports
+                        continue
+                    out.append(line)
+        elif "{Strategy class}" in line:
+            out.append(line.replace("{Strategy class}", strategy_class))
+        elif "{Market class}" in line:
+            out.append(line.replace("{Market class}", market_class))
+        elif "import" in line and " ." in line:
+            # Skip reletive imports
+            continue
+        else:
+            out.append(line)
+
+    with open(out_file, "w") as f:
+        f.write("".join(out))
+
+
 if __name__ == "__main__":
+    base_file = "./app/_lambda_base.py"
+    tmp_file = "_tmp_s.py"
     parser = argparse.ArgumentParser(
         description=
-        "Combine specific functions and classes from Python files into one file.\n ex) python build.py -d /path/to/dir1 /path/to/dir2 -o combined_output.py MyFunction MyClass"
+        "Combine specific functions and classes from Python files into one file.\n ex) python build.py -d /path/to/dir1 /path/to/dir2 -o CloudFormation.yaml -s MACDStartegy MyFunction MyClass"
     )
     parser.add_argument("-d",
                         "--directories",
                         nargs="+",
-                        required=True,
                         help="The directories to search for Python files.")
     parser.add_argument("-o",
                         "--output-file",
+                        default="_lamda.py",
+                        help="Path to the output file.")
+    parser.add_argument("-s",
+                        "--strategy-class",
                         required=True,
-                        help="The path of the output file.")
+                        help="Strategy Class Name.")
+    parser.add_argument("-m",
+                        "--market-class",
+                        default="BitflyerMarket",
+                        help="Market Class Name.")
     parser.add_argument(
-        "target_names",
+        "-a",
+        "--additional_target_names",
         nargs="+",
         help="The names of the target functions and classes to include.")
 
     args = parser.parse_args()
+    classes = []
+    classes.append(args.strategy_class)
+    if args.additional_target_names is not None:
+        classes.extend(args.additional_target_names)
+    classes.append(args.market_class)
 
-    combine_files(args.directories, args.output_file, set(args.target_names))
+    combine_files(args.directories, tmp_file, classes)
+    create_lamda_file(base_file, tmp_file, args.output_file,
+                      args.strategy_class, args.market_class)

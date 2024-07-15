@@ -111,3 +111,5 @@ ENV/
 # Aplication output
 plot*html
 result/
+*tmp*
+CloudFormation.yaml
