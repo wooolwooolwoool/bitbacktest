@@ -258,7 +258,7 @@ class BitflyerMarket(Market):
                              digestmod=hashlib.sha256).hexdigest()
         headers = {
             'Content-Type': 'application/json',
-            'ACCESS-KEY': self.API_KEY,
+            'ACCESS-KEY': self.apikey,
             'ACCESS-TIMESTAMP': timestamp,
             'ACCESS-SIGN': signature
         }
