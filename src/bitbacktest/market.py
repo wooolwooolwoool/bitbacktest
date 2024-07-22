@@ -215,8 +215,11 @@ class BitflyerMarket(Market):
         body = json.dumps(order_data)
         headers = self.header('POST', endpoint=endpoint, body=body)
 
-        response = requests.post(order_url, headers=headers, data=body)
-        return response.json()
+        res = requests.post(order_url, headers=headers, data=body)
+        if 'child_order_acceptance_id' in res.json():
+            return True
+        else:
+            return False
 
     def place_limit_order(self, side: Literal['Buy', 'Sell'], quantity: float,
                           price: float):
@@ -239,7 +242,7 @@ class BitflyerMarket(Market):
         headers = self.header('POST', endpoint=endpoint, body=body)
 
         res = requests.post(order_url, headers=headers, data=body)
-        if res.status_code == "200":
+        if 'child_order_acceptance_id' in res.json():
             return True
         else:
             return False
