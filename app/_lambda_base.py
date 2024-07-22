@@ -155,7 +155,10 @@ def lambda_handler(event, context):
                 pass
             current_price = market.get_current_price()
             signals = strategy.generate_signals(current_price)
-            strategy.execute_trade(current_price, signals)
+
+            orders = market.get_open_orders()
+            if os.environ["TRADE_ENABLE"] == "1" and int(os.environ["ORDER_NUM_MAX"]) > len(orders):
+                strategy.execute_trade(current_price, signals)
             save_to_dynamodb(table, strategy.dynamic, os.environ["PARAMS_KEY"])
 
     except:

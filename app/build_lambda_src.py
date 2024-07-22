@@ -2,6 +2,8 @@ import os
 import re
 import argparse
 
+base_file = "./app/_lambda_base.py"
+
 
 def find_python_files(directories):
     """Recursively find all Python files in the given directories."""
@@ -163,7 +165,6 @@ def create_lamda_file(base_file, tmp_file, out_file, strategy_class,
 
 
 if __name__ == "__main__":
-    base_file = "./app/_lambda_base.py"
     tmp_file = "_tmp_s.py"
     parser = argparse.ArgumentParser(
         description=
@@ -201,3 +202,4 @@ if __name__ == "__main__":
     combine_files(args.directories, tmp_file, classes)
     create_lamda_file(base_file, tmp_file, args.output_file,
                       args.strategy_class, args.market_class)
+    os.remove(tmp_file)

@@ -16,7 +16,7 @@ def run_script(script_args):
 
 
 if __name__ == "__main__":
-    tmp_file = "_tmp.py"
+    tmp_file = "_tmp_lambda.py"
     parser = argparse.ArgumentParser(
         description=
         "Generate a CloudFormation template with an embedded Lambda function code."

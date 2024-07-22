@@ -1,6 +1,7 @@
 import argparse
 import re
 
+template_base_path = "./app/_template.yaml"
 
 def extract_static_keys_from_file(file_path):
   # ファイルの内容を読み込みます
@@ -28,7 +29,6 @@ def create_cloudformation_template(lambda_code_path, output_file,
   env_variables_yaml = "\n".join(
       [f"          {env}: 0" for env in environment_variables])
 
-  template_base_path = "./app/_template.yaml"
   with open(template_base_path, 'r', encoding='utf-8') as f:
     template_base = f.read()
 
@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
   envs = extract_static_keys_from_file(args.lambda_code_path)
   envs.extend(
-      ["API_KEY", "API_SECRET", "TABLE_NAME", "PARAMS_KEY", "TRADE_ENABLE"])
+      ["API_KEY", "API_SECRET", "TABLE_NAME", "PARAMS_KEY", "TRADE_ENABLE", "ORDER_NUM_MAX"])
 
   create_cloudformation_template(
       lambda_code_path=args.lambda_code_path,
