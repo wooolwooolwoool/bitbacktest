@@ -110,10 +110,11 @@ class Market(ABC):
 
 class BacktestMarket(Market):
 
-    def __init__(self, data: np.ndarray):
+    def __init__(self, data: np.ndarray, fee_rate: float = 0.0015):
         super().__init__()
         self.data = data
         self.index = 0
+        self.fee_rate = fee_rate
 
     def set_current_index(self, index: int):
         self.index = index
@@ -142,6 +143,7 @@ class BacktestMarket(Market):
         if self.portfolio['cash'] >= quantity * price:
             self.portfolio['cash'] -= quantity * price
             self.portfolio['position'] += quantity
+            self.portfolio['position'] -= quantity * self.fee_rate
             self.portfolio["trade_count"] += 1
             return True  # Buy order executed successfully
         else:
@@ -151,6 +153,7 @@ class BacktestMarket(Market):
         if self.portfolio['position'] >= quantity:
             self.portfolio['cash'] += quantity * price
             self.portfolio['position'] -= quantity
+            self.portfolio['position'] -= quantity * self.fee_rate
             self.portfolio["trade_count"] += 1
             return True  # Sell order executed successfully
         else:
