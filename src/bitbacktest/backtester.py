@@ -9,7 +9,7 @@ from skopt import gp_minimize
 from skopt.space import Integer, Real, Categorical
 
 
-class Backtester:
+class GridBacktester:
 
     def __init__(self, strategy: Strategy):
         self.strategy = strategy
