@@ -52,6 +52,8 @@ class Market(ABC):
             "total_value_hist": [],
             "total_pos_hist": []
         }
+        self.order = []
+        self.index = 0
 
     @abstractmethod
     def place_market_order(self, side: Literal['Buy', 'Sell'],
