@@ -1,15 +1,15 @@
 try:
-          from bitbacktest.strategy import MovingAverageCrossoverStrategy
-          from bitbacktest.market import BacktestMarket
-          from bitbacktest.backtester import Backtester
-          from bitbacktest.data_generater import random_data
+    from bitbacktest.strategy import MovingAverageCrossoverStrategy
+    from bitbacktest.market import BacktestMarket
+    from bitbacktest.backtester import GridBacktester
+    from bitbacktest.data_generater import random_data
 except:
-          import sys
-          sys.path.append(".")
-          from src.bitbacktest.strategy import MovingAverageCrossoverStrategy
-          from src.bitbacktest.market import BacktestMarket
-          from bitbacktest.backtester import Backtester
-          from src.bitbacktest.data_generater import random_data
+    import sys
+    sys.path.append(".")
+    from src.bitbacktest.strategy import MovingAverageCrossoverStrategy
+    from src.bitbacktest.market import BacktestMarket
+    from src.bitbacktest.backtester import GridBacktester
+    from src.bitbacktest.data_generater import random_data
 
 # Generate data for test
 seed = 111
@@ -62,7 +62,7 @@ start_cash = 1e6
 # Prepare Strategy and Backtester
 market = BacktestMarket(price_data)
 strategy = MovingAverageCrossoverStrategy(market)
-backtester = Backtester(strategy)
+backtester = GridBacktester(strategy)
 
 # Execute backtest
 backtester.backtest(params, start_cash)
