@@ -1,7 +1,8 @@
 import argparse
 import re
 
-template_base_path = "./app/_template.yaml"
+template_base_path = "./app/aws_build/_template.yaml"
+
 
 def extract_static_keys_from_file(file_path):
   # ファイルの内容を読み込みます
@@ -65,8 +66,10 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   envs = extract_static_keys_from_file(args.lambda_code_path)
-  envs.extend(
-      ["API_KEY", "API_SECRET", "TABLE_NAME", "PARAMS_KEY", "TRADE_ENABLE", "ORDER_NUM_MAX"])
+  envs.extend([
+      "API_KEY", "API_SECRET", "TABLE_NAME", "PARAMS_KEY", "TRADE_ENABLE",
+      "ORDER_NUM_MAX"
+  ])
 
   create_cloudformation_template(
       lambda_code_path=args.lambda_code_path,

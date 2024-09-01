@@ -46,9 +46,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     comb_args = [
-        "./app/build_lambda_src.py", "-s", args.strategy_class, "-m",
+        "./app/aws_build/build_lambda_src.py", "-s", args.strategy_class, "-m",
         args.market_class, "-o", tmp_file
     ]
+    if args.directories is None:
+        args.directories = []
+    if not "src/" in args.directories:
+        args.directories.append("src/")
     if args.directories is not None:
         comb_args.append("-d")
         comb_args.extend(args.directories)
@@ -58,7 +62,7 @@ if __name__ == "__main__":
     run_script(comb_args)
 
     CF_args = [
-        "./app/build_cloud_formation.py", "-p", tmp_file, "-o",
+        "./app/aws_build/build_cloud_formation.py", "-p", tmp_file, "-o",
         args.output_file
     ]
     run_script(CF_args)

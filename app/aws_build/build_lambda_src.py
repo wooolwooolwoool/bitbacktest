@@ -2,7 +2,7 @@ import os
 import re
 import argparse
 
-base_file = "./app/_lambda_base.py"
+base_file = "./app/aws_build/_lambda_base.py"
 
 
 def find_python_files(directories):
