@@ -3,13 +3,13 @@ from plotly.subplots import make_subplots
 import numpy as np
 
 try:
-    from bitbacktest.strategy import MovingAverageCrossoverStrategy, MACDStrategy, MACD_re_Strategy
+    from bitbacktest.strategy import MovingAverageCrossoverStrategy, MACDStrategy
     from bitbacktest.market import BacktestMarket
     from bitbacktest.data_generater import random_data
 except:
     import sys
     sys.path.append(".")
-    from src.bitbacktest.strategy import MovingAverageCrossoverStrategy, MACDStrategy, MACD_re_Strategy
+    from src.bitbacktest.strategy import MovingAverageCrossoverStrategy, MACDStrategy
     from src.bitbacktest.market import BacktestMarket
     from src.bitbacktest.data_generater import random_data
 
@@ -24,10 +24,10 @@ price_data = random_data(start_price, price_range, length, seed)
 market = BacktestMarket(price_data)
 strategy = MACDStrategy(market)
 param = {
-    "short_window": 12,
-    "long_window": 26,
-    "signal_window": 9,
-    "one_order_quantity": 0.01
+    "short_window": 12 * 60,
+    "long_window": 26 * 60,
+    "signal_window": 9 * 60,
+    "one_order_quantity": 0.001
 }
 start_cash = 1e6
 

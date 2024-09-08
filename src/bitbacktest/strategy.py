@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 from abc import ABC, abstractmethod
+import os
 
 from .market import *
 
@@ -67,6 +68,12 @@ class Strategy(ABC):
         """
         pass
 
+    def trade_limiter(self) -> bool:
+        orders = self.market.get_open_orders()
+        ret = (os.environ["TRADE_ENABLE"] == "1"
+               and int(os.environ["ORDER_NUM_MAX"]) > len(orders))
+        return ret
+
     def backtest(self):
         """Running a back test
         Backtest flow is
@@ -80,12 +87,18 @@ class Strategy(ABC):
         """
         self.dynamic["count"] = 0
         self.market.set_current_index(0)
+        if not "TRADE_ENABLE" in os.environ.keys():
+            os.environ["TRADE_ENABLE"] = "1"
+        if not "ORDER_NUM_MAX" in os.environ.keys():
+            os.environ["ORDER_NUM_MAX"] = "99999"
+
         for _ in tqdm(range(len(self.market))):
             self.dynamic["count"] += 1
             self.market.set_current_index(self.dynamic["count"] - 1)
             price = self.market.get_current_price()
             signal = self.generate_signals(price)
-            self.execute_trade(price, signal)
+            if self.trade_limiter():
+                self.execute_trade(price, signal)
             self.market.check_order()
             self.market.save_history(price)
         return self.market.portfolio
@@ -105,7 +118,7 @@ class MovingAverageCrossoverStrategy(Strategy):
         self.dynamic["price_hist"] = np.append(self.dynamic["price_hist"],
                                                price)
         if len(self.dynamic["price_hist"]) < (self.static["long_window"] + 1):
-            return None  # Not enough data for calculation
+            return ""  # Not enough data for calculation
 
         short_mavg = np.mean(
             self.dynamic["price_hist"][-self.static["short_window"]:])
