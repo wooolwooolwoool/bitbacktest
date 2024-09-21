@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 from abc import ABC, abstractmethod
+from typing import Literal
 import os
 
 from .market import *
@@ -106,6 +107,138 @@ class Strategy(ABC):
     @property
     def backtest_history(self):
         return self.market.hist
+    
+    def create_backtest_graph(self, output_filename="plot_signal", backend: Literal['plotly', 'matplotlib'] ="plotly"):
+        
+        buy_signals = [
+            signal[1] for signal in self.backtest_history["signals"]["Buy"]
+        ]
+        buy_signals_pos = [
+            signal[0] for signal in self.backtest_history["signals"]["Buy"]
+        ]
+        sell_signals = [
+            signal[1] for signal in self.backtest_history["signals"]["Sell"]
+        ]
+        sell_signals_pos = [
+            signal[0] for signal in self.backtest_history["signals"]["Sell"]
+        ]
+        exe_buy_signals = [
+            signal[1] for signal in self.backtest_history["execute_signals"]["Buy"]
+        ]
+        exe_buy_signals_pos = [
+            signal[0] for signal in self.backtest_history["execute_signals"]["Buy"]
+        ]
+        exe_sell_signals = [
+            signal[1] for signal in self.backtest_history["execute_signals"]["Sell"]
+        ]
+        exe_sell_signals_pos = [
+            signal[0] for signal in self.backtest_history["execute_signals"]["Sell"]
+        ]
+        price_data = self.market.data
+        value_hist = self.market.hist["total_value_hist"]
+
+        if backend == "matplotlib":
+            import matplotlib.pyplot as plt
+            import matplotlib
+            matplotlib.use('Agg')
+            
+            fig = plt.figure(figsize=(16, 9))
+            ax1 = fig.add_subplot()
+            ax2 = ax1.twinx()
+            ax1.plot(range(len(price_data)), price_data, label="Price Data", color='blue')
+            
+            ax2.plot(range(len(value_hist)), value_hist, label="Total value", color='red')
+            ax1.scatter(buy_signals_pos,
+                        buy_signals,
+                        label="buy_signals",
+                        color='c',
+                        marker='o',
+                        s=100,
+                        edgecolors='DarkSlateGrey',
+                        alpha=0.4)
+            ax1.scatter(exe_buy_signals_pos,
+                        exe_buy_signals,
+                        label="exec_buy_signals",
+                        color='c',
+                        marker='o',
+                        s=100,
+                        edgecolors='DarkSlateGrey',
+                        alpha=0.8)
+            ax1.scatter(sell_signals_pos,
+                        sell_signals,
+                        label="sell_signals",
+                        color='m',
+                        marker='o',
+                        s=100,
+                        edgecolors='DarkSlateGrey',
+                        alpha=0.4)
+            ax1.scatter(exe_sell_signals_pos,
+                        exe_sell_signals,
+                        label="exec_sell_signals",
+                        color='m',
+                        marker='o',
+                        s=100,
+                        edgecolors='DarkSlateGrey',
+                        alpha=0.8)
+                       
+            ax1.set_ylabel("BTC Price (JPY)")
+            ax2.set_ylabel("Total Value (JPY)")
+
+            ax1.legend(loc="upper left")
+            ax2.legend(loc="upper right")
+            fig.savefig(output_filename + ".png")
+
+            print(f"save to {output_filename}.png")
+
+        elif backend == "plotly":
+            import plotly.graph_objects as go
+            from plotly.subplots import make_subplots
+            
+            fig = make_subplots(specs=[[{"secondary_y": True}]])
+            fig.add_trace(
+                go.Scatter(x=np.array(range(len(price_data))),
+                           y=price_data,
+                           name="Price Data",
+                           mode="lines"))
+            fig.add_trace(go.Scatter(x=np.array(
+                range(len(value_hist))), y=value_hist, name="Total_value"),
+                          secondary_y=True)
+
+            fig.add_trace(
+                go.Scatter(x=np.array(buy_signals_pos),
+                           y=buy_signals,
+                           name="buy_signals",
+                           mode="markers", marker_symbol="circle-open"))
+            fig.add_trace(
+                go.Scatter(x=np.array(exe_buy_signals_pos),
+                           y=exe_buy_signals,
+                           name="exe_buy_signals",
+                           mode="markers", marker_symbol="circle"))
+            
+            fig.add_trace(
+                go.Scatter(x=np.array(sell_signals_pos),
+                           y=sell_signals,
+                           name="sell_signals",
+                           mode="markers", marker_symbol="circle-open"))
+            fig.add_trace(
+                go.Scatter(x=np.array(exe_sell_signals_pos),
+                           y=exe_sell_signals,
+                           name="exe_sell_signals",
+                           mode="markers", marker_symbol="circle"))
+            
+            fig.update_xaxes(title="Sample number")
+            fig.update_yaxes(title="BTC Price (JPY)")
+            fig.update_yaxes(title="Total Value (BTC)", secondary_y=True)
+            fig.update_layout(font={"family": "Meiryo"})
+            fig.update_layout(title="Signals")
+            fig.update_layout(showlegend=True)
+            fig.update_traces(marker=dict(
+                size=12, line=dict(width=2, color='DarkSlateGrey'), opacity=0.8))
+
+            fig.write_html(output_filename + ".html")
+            
+            print(f"save to {output_filename}.html")
+        return
 
 
 class MovingAverageCrossoverStrategy(Strategy):
