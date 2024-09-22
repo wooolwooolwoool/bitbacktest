@@ -75,7 +75,7 @@ class Strategy(ABC):
                and int(os.environ["ORDER_NUM_MAX"]) > len(orders))
         return ret
 
-    def backtest(self):
+    def backtest(self, hold_params=[]):
         """Running a back test
         Backtest flow is
         1. get current price
@@ -88,6 +88,9 @@ class Strategy(ABC):
         """
         self.dynamic["count"] = 0
         self.market.set_current_index(0)
+        self.hold_params = {}
+        for p in hold_params:
+            self.hold_params[p] = []
         if not "TRADE_ENABLE" in os.environ.keys():
             os.environ["TRADE_ENABLE"] = "1"
         if not "ORDER_NUM_MAX" in os.environ.keys():
@@ -102,6 +105,8 @@ class Strategy(ABC):
                 self.execute_trade(price, signal)
             self.market.check_order()
             self.market.save_history(price)
+            for p in hold_params:
+                self.hold_params[p].append(self.dynamic[p]) 
         return self.market.portfolio
 
     @property
@@ -145,9 +150,14 @@ class Strategy(ABC):
             fig = plt.figure(figsize=(16, 9))
             ax1 = fig.add_subplot()
             ax2 = ax1.twinx()
-            ax1.plot(range(len(price_data)), price_data, label="Price Data", color='blue')
+            ax1.plot(range(len(price_data)), price_data, label="Price Data", color='blue', alpha=0.8)
             
-            ax2.plot(range(len(value_hist)), value_hist, label="Total value", color='red')
+            ax2.plot(range(len(value_hist)), value_hist, label="Total value", color='red', alpha=0.8)
+            if len(self.hold_params.keys()) != 0:
+                ax3 = ax1.twinx()
+                for k, v in self.hold_params.items():
+                    ax3.plot(range(len(v)), v, label=k, alpha=0.8)
+                ax3.yaxis.set_visible(False)
             ax1.scatter(buy_signals_pos,
                         buy_signals,
                         label="buy_signals",
@@ -184,8 +194,9 @@ class Strategy(ABC):
             ax1.set_ylabel("BTC Price (JPY)")
             ax2.set_ylabel("Total Value (JPY)")
 
-            ax1.legend(loc="upper left")
-            ax2.legend(loc="upper right")
+            plt.xlim(0, len(price_data))
+
+            fig.legend(loc="upper right")
             fig.savefig(output_filename + ".png")
 
             print(f"save to {output_filename}.png")
