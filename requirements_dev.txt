@@ -13,3 +13,4 @@ requests
 tqdm
 boto3
 scikit-optimize
+matplotlib

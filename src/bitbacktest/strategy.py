@@ -54,7 +54,7 @@ class Strategy(ABC):
             price (float): Current bitcoin price
 
         Returns:
-            str: Trade signal (ex. "Buy", "Sell")
+            str: Trade signal (ex. "Buy", "Sell" or "Hold")
         """
         return ""
 
@@ -113,7 +113,7 @@ class Strategy(ABC):
     def backtest_history(self):
         return self.market.hist
     
-    def create_backtest_graph(self, output_filename="plot_signal", backend: Literal['plotly', 'matplotlib'] ="plotly"):
+    def create_backtest_graph(self, output_filename="plot_signal", backend: Literal['plotly', 'matplotlib'] ="matplotlib"):
         
         buy_signals = [
             signal[1] for signal in self.backtest_history["signals"]["Buy"]
@@ -262,7 +262,7 @@ class MovingAverageCrossoverStrategy(Strategy):
         self.dynamic["price_hist"] = np.append(self.dynamic["price_hist"],
                                                price)
         if len(self.dynamic["price_hist"]) < (self.static["long_window"] + 1):
-            return ""  # Not enough data for calculation
+            return "Hold"  # Not enough data for calculation
 
         short_mavg = np.mean(
             self.dynamic["price_hist"][-self.static["short_window"]:])
@@ -283,7 +283,7 @@ class MovingAverageCrossoverStrategy(Strategy):
         elif short_mavg < long_mavg and short_mavg_old > long_mavg_old:
             return 'Sell'
         else:
-            return ""
+            return "Hold"
 
     def execute_trade(self, price, signal):
         if signal in ['Buy', "Sell"]:
@@ -342,7 +342,7 @@ class MACDStrategy(Strategy):
         self.dynamic["signal_line_values"] = signal_line
 
         # generate signal
-        signal = ""
+        signal = "Hold"
         if self.dynamic["macd_values_old"] is not None:
             if self.dynamic["macd_values_old"] <= self.dynamic[
                     "signal_line_values_old"] and macd > signal_line:
@@ -356,3 +356,63 @@ class MACDStrategy(Strategy):
         if signal in ['Buy', "Sell"]:
             self.market.place_market_order(signal,
                                            self.static["one_order_quantity"])
+
+class BollingerBandsStrategy(Strategy):
+        
+    def reset_param(self, param):
+        """BollingerBandsSignal
+        param = {
+            'window_size': window_size,  # 移動平均の期間
+            'num_std_dev': num_std_dev   # 標準偏差の倍率
+        }
+        """
+        super().reset_param(param)
+        # 動的なパラメータは self.dynamic に保持
+        self.dynamic = {
+            'prices': np.array([]),          # 価格の履歴
+            'mean': 0,             # 移動平均
+            'squared_sum': 0,      # 二乗和（標準偏差計算用）
+            'buy_count': 0         # 売買数
+        }
+
+    def generate_signals(self, price):
+        # 現在価格をリストに追加
+        self.dynamic['prices'] = np.append(self.dynamic['prices'], price)
+
+        # ウィンドウサイズを超えた場合、古いデータを削除
+        if len(self.dynamic['prices']) > self.static['window_size']:
+            self.dynamic['prices'] = self.dynamic['prices'][1:]
+
+        # 現在のウィンドウ内の価格に基づいて移動平均と標準偏差を計算
+        if len(self.dynamic['prices']) >= self.static['window_size']:
+            mean = np.mean(self.dynamic['prices'])  # 平均を計算
+            std_dev = np.std(self.dynamic['prices'])  # 標準偏差を計算
+        else:
+            self.dynamic['upper_band'] = None
+            self.dynamic['lower_band'] = None
+            return "Hold"  # データが十分にない場合はシグナルを出さない
+
+        # ボリンジャーバンドの上下限を計算
+        self.dynamic['upper_band'] = mean + self.static['num_std_dev'] * std_dev
+        self.dynamic['lower_band'] = mean - self.static['num_std_dev'] * std_dev
+
+        # シグナルを判定
+        if price > self.dynamic['upper_band']:
+            return "Sell"  # 上限を超えたら売りシグナル
+        elif price < self.dynamic['lower_band']:
+            return "Buy"   # 下限を割ったら買いシグナル
+        else:
+            return "Hold"  # それ以外は保持
+
+    def execute_trade(self, price, signal):
+        if signal == 'Buy' and self.dynamic['buy_count'] < 999:
+            result = self.market.place_market_order(signal,
+                                           self.static["one_order_quantity"])
+            if result:
+                self.dynamic['buy_count'] += 1
+        elif signal == 'Sell' and self.dynamic['buy_count'] > 0:
+            result = self.market.place_market_order(signal,
+                                           self.static["one_order_quantity"])
+            if result:
+                self.dynamic['buy_count'] -= 1
+            

@@ -3,13 +3,13 @@ from plotly.subplots import make_subplots
 import numpy as np
 
 try:
-    from bitbacktest.strategy import MovingAverageCrossoverStrategy, MACDStrategy
+    from bitbacktest.strategy import BollingerBandsStrategy
     from bitbacktest.market import BacktestMarket
     from bitbacktest.data_generater import random_data
 except:
     import sys
     sys.path.append(".")
-    from src.bitbacktest.strategy import MovingAverageCrossoverStrategy, MACDStrategy
+    from src.bitbacktest.strategy import BollingerBandsStrategy
     from src.bitbacktest.market import BacktestMarket
     from src.bitbacktest.data_generater import random_data
 
@@ -22,12 +22,11 @@ price_data = random_data(start_price, price_range, length, seed)
 
 # Set parameters
 market = BacktestMarket(price_data)
-strategy = MovingAverageCrossoverStrategy(market)
+strategy = BollingerBandsStrategy(market)
 param = {
-    "short_window": 60,
-    "long_window": 720,
-    "profit": 1.01,
-    "one_order_quantity": 0.01
+    'window_size': 1000,  # 移動平均の期間
+    'num_std_dev': 2,   # 標準偏差の倍率
+    "one_order_quantity": 0.001
 }
 start_cash = 1e6
 
@@ -35,7 +34,7 @@ start_cash = 1e6
 strategy.reset_all(param, start_cash)
 
 # Execute backtest
-portfolio_result = strategy.backtest(hold_params=[])
+portfolio_result = strategy.backtest(hold_params=["upper_band", "lower_band"])
 print(portfolio_result)
 
 # Plot graph

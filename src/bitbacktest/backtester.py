@@ -5,8 +5,11 @@ except:
     pass
 
 from .strategy import *
-from skopt import gp_minimize
-from skopt.space import Integer, Real, Categorical
+try:
+    from skopt import gp_minimize
+    from skopt.space import Integer, Real, Categorical
+except:
+    pass
 
 
 class GridBacktester:
@@ -99,4 +102,4 @@ class BayesianBacktester:
         print(f"Best Parameters: {self.best_params}")
         print(f"Best Total Value: {self.best_value}")
 
-        return self.best_value
+        return self.best_value, self.best_params

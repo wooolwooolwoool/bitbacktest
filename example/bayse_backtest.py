@@ -1,15 +1,15 @@
 try:
-  from bitbacktest.strategy import MACDStrategy
-  from bitbacktest.market import BacktestMarket
-  from bitbacktest.backtester import BayesianBacktester
-  from bitbacktest.data_generater import random_data
+    from bitbacktest.strategy import MACDStrategy
+    from bitbacktest.market import BacktestMarket
+    from bitbacktest.backtester import BayesianBacktester
+    from bitbacktest.data_generater import random_data
 except:
-  import sys
-  sys.path.append(".")
-  from src.bitbacktest.strategy import MACDStrategy
-  from src.bitbacktest.market import BacktestMarket
-  from src.bitbacktest.backtester import BayesianBacktester
-  from src.bitbacktest.data_generater import random_data
+    import sys
+    sys.path.append(".")
+    from src.bitbacktest.strategy import MACDStrategy
+    from src.bitbacktest.market import BacktestMarket
+    from src.bitbacktest.backtester import BayesianBacktester
+    from src.bitbacktest.data_generater import random_data
 
 from skopt.space import Integer, Real, Categorical
 
@@ -36,4 +36,10 @@ strategy = MACDStrategy(market)
 backtester = BayesianBacktester(strategy)
 
 # Execute backtest
-backtester.backtest(target_params, start_cash, n_calls=100)
+best_value, best_param = backtester.backtest(target_params, start_cash, n_calls=10)
+
+strategy.reset_all(best_param, start_cash)
+strategy.backtest(hold_params=["macd_values", "signal_line_values"])
+
+# Plot graph
+strategy.create_backtest_graph(backend="matplotlib")
