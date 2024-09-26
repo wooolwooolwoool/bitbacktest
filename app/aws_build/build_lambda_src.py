@@ -66,7 +66,7 @@ def extract_imports_and_definitions(file_path, target_names, logger):
     for line in lines:
         if line.strip().startswith("import ") or line.strip().startswith(
                 "from "):
-            if line not in imports and "tqdm" not in line:
+            if line not in imports and "tqdm" not in line and "matplotlib" not in line and "plotly" not in line:
                 imports.append(line)
         elif re.match(r'^\s*class\s+(\w+)\s*[\(:]', line):
             class_name = re.findall(r'^\s*class\s+(\w+)\s*[\(:]', line)[0]
@@ -127,7 +127,12 @@ def combine_files(directory, output_file, target_names):
             file_path, target_names, logger)
         if definitions != []:
             all_imports.update(imports)
-            all_definitions.extend(definitions)
+            if "class Market(ABC):\n" in definitions:
+                definitions.extend(all_definitions)
+                all_definitions = definitions
+            else:
+                all_definitions.extend(definitions)
+            all_definitions.append("")
 
     with open(output_file, 'w', encoding='utf-8') as out_file:
         for imp in sorted(all_imports):

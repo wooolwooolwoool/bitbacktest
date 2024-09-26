@@ -9,6 +9,11 @@ Parameters:
     Type: String
     Default: {lambda_function_name}
 
+  MyEventRuleName:
+    Description: Name of the Event Rule
+    Type: String
+    Default: MyEventRule
+
   LambdaRoleArn:
     Description: IAM role ARN for the Lambda function
     Type: String
@@ -46,7 +51,7 @@ Resources:
   MyEventRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: MyEventRule
+      Name: !Ref MyEventRuleName
       ScheduleExpression: rate(5 minutes)
       State: DISABLED
       Targets:

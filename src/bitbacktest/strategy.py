@@ -405,7 +405,7 @@ class BollingerBandsStrategy(Strategy):
             return "Hold"  # それ以外は保持
 
     def execute_trade(self, price, signal):
-        if signal == 'Buy' and self.dynamic['buy_count'] < 999:
+        if signal == 'Buy' and self.dynamic['buy_count'] < self.static['buy_count_limit']:
             result = self.market.place_market_order(signal,
                                            self.static["one_order_quantity"])
             if result:

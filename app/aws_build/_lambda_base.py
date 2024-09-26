@@ -19,7 +19,7 @@ def convert_numpy_array_to_dynamodb(np_array, chunk_size_kb=400):
     array_bytes = np_array.tobytes()
 
     # バイト列をBase64エンコード
-    array_base64 = base64.b64encode(array_bytes) #.decode('utf-8')
+    array_base64 = base64.b64encode(array_bytes).decode('utf-8')
 
     # 分割サイズをバイト単位に変換
     chunk_size = chunk_size_kb * 1024
@@ -34,7 +34,7 @@ def convert_numpy_array_to_dynamodb(np_array, chunk_size_kb=400):
 
 def revert_numpy_array_from_dynamodb(data, dtype):
     # パートを結合
-    combined_base64 = b''.join([data[str(i)].value for i in range(len(data))])
+    combined_base64 = b''.join([data[str(i)].encode('utf-8') for i in range(len(data))])
 
     # Base64デコード
     array_bytes = base64.b64decode(combined_base64)
@@ -127,38 +127,37 @@ def read_from_dynamodb(table: object, key_value, partition_key: str) -> dict:
 
 def lambda_handler(event, context):
     try:
-        if os.environ["TRADE_ENABLE"] == "1":
-            # ビットフライヤーのAPIキーとシークレット
-            API_KEY = os.environ["API_KEY"]
-            API_SECRET = os.environ["API_SECRET"]
-            dynamodb = boto3.resource('dynamodb')
-            table = dynamodb.Table(os.environ["TABLE_NAME"])
-            
-            market = {Market class}()
-            market.set_apikey(API_KEY, API_SECRET)        
-            strategy = {Strategy class}(market)
-            # 環境変数読み込み
-            env_variables = {}
-            for key, value in os.environ.items():
-                try:
-                    # float に変換
-                    env_variables[key] = float(value)
-                except ValueError:
-                    # 変換できない場合はそのまま文字列で保持
-                    env_variables[key] = value
-            strategy.reset_param(env_variables)
+        # ビットフライヤーのAPIキーとシークレット
+        API_KEY = os.environ["API_KEY"]
+        API_SECRET = os.environ["API_SECRET"]
+        dynamodb = boto3.resource('dynamodb')
+        table = dynamodb.Table(os.environ["TABLE_NAME"])
+        
+        market = {Market class}()
+        market.set_apikey(API_KEY, API_SECRET)        
+        strategy = {Strategy class}(market)
+        # 環境変数読み込み
+        env_variables = {}
+        for key, value in os.environ.items():
             try:
-                val = read_from_dynamodb(table, os.environ["PARAMS_KEY"], "id")
-                if val is not None:
-                    strategy.dynamic = val
-            except:
-                pass
-            current_price = market.get_current_price()
-            signals = strategy.generate_signals(current_price)
+                # float に変換
+                env_variables[key] = float(value)
+            except ValueError:
+                # 変換できない場合はそのまま文字列で保持
+                env_variables[key] = value
+        strategy.reset_param(env_variables)
+        try:
+            val = read_from_dynamodb(table, os.environ["PARAMS_KEY"], "id")
+            if val is not None:
+                strategy.dynamic = val
+        except:
+            pass
+        current_price = market.get_current_price()
+        signals = strategy.generate_signals(current_price)
 
-            if strategy.trade_limiter():
-                strategy.execute_trade(current_price, signals)
-            save_to_dynamodb(table, strategy.dynamic, os.environ["PARAMS_KEY"])
+        if strategy.trade_limiter():
+            strategy.execute_trade(current_price, signals)
+        save_to_dynamodb(table, strategy.dynamic, os.environ["PARAMS_KEY"])
 
     except:
         traceback.print_exc()

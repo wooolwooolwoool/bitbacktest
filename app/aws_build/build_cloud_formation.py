@@ -10,12 +10,12 @@ def extract_static_keys_from_file(file_path):
     script = file.read()
 
   # 正規表現パターンを定義します
-  pattern = r'self\.static\["([^"]+)"\]'
+  pattern = r'self\.static\[(["\'])(.*?)\1\]'
 
   # パターンにマッチする全ての部分を検索します
   matches = re.findall(pattern, script)
 
-  return matches
+  return [match[1] for match in matches]
 
 
 def create_cloudformation_template(lambda_code_path, output_file,
@@ -70,6 +70,7 @@ if __name__ == "__main__":
       "API_KEY", "API_SECRET", "TABLE_NAME", "PARAMS_KEY", "TRADE_ENABLE",
       "ORDER_NUM_MAX"
   ])
+  envs = set(envs)
 
   create_cloudformation_template(
       lambda_code_path=args.lambda_code_path,
