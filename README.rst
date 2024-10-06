@@ -98,6 +98,7 @@ See example folder
         You can get result and graph.
 
         .. code-block:: bash
+
                 $ python3 example/backtest_BollingerBands.py 
                 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 40320/40320 [00:11<00:00, 3645.49it/s]
                 {'trade_count': 1700, 'cash': 281861.24843796133, 'position': 0.07344999999999792, 'total_value': 997966.1305175956}
@@ -108,7 +109,8 @@ See example folder
 #. Create yaml file for AWS.
 
         .. code-block:: bash
-                python3 app/aws_build/build_all.py -d src -s BollingerBandsStrategy -o CloudFormationBB.yaml
+                
+                $ python3 app/aws_build/build_all.py -d src -s BollingerBandsStrategy -o CloudFormationBB.yaml
 
 #. Deploy to AWS CloudFormationBB.yaml to CloudFormation
 
