@@ -1,17 +1,8 @@
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import numpy as np
-
-try:
-    from bitbacktest.strategy import BollingerBandsStrategy
-    from bitbacktest.market import BacktestMarket
-    from bitbacktest.data_generater import random_data
-except:
-    import sys
-    sys.path.append(".")
-    from src.bitbacktest.strategy import BollingerBandsStrategy
-    from src.bitbacktest.market import BacktestMarket
-    from src.bitbacktest.data_generater import random_data
+import sys
+sys.path.append(".")
+from src.bitbacktest.strategy import BollingerBandsStrategy
+from src.bitbacktest.market import BacktestMarket
+from src.bitbacktest.data_generater import random_data
 
 # Generate data for test
 seed = 111
@@ -26,7 +17,8 @@ strategy = BollingerBandsStrategy(market)
 param = {
     'window_size': 1000,  # 移動平均の期間
     'num_std_dev': 2,   # 標準偏差の倍率
-    "one_order_quantity": 0.001
+    "one_order_quantity": 0.001,
+    'buy_count_limit': 999
 }
 start_cash = 1e6
 
