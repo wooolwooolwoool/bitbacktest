@@ -211,6 +211,13 @@ class Strategy(ABC):
                            y=price_data,
                            name="Price Data",
                            mode="lines"))
+
+            if len(self.hold_params.keys()) != 0:
+                for k, v in self.hold_params.items():
+                    fig.add_trace(
+                        go.Scatter(x=np.array(range(len(v))),
+                                y=v, name=k, mode="lines"))
+
             fig.add_trace(go.Scatter(x=np.array(
                 range(len(value_hist))), y=value_hist, name="Total_value"),
                           secondary_y=True)

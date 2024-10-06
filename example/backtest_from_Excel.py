@@ -28,4 +28,4 @@ portfolio_result = strategy.backtest(hold_params=["upper_band", "lower_band"])
 print(portfolio_result)
 
 # Plot graph
-strategy.create_backtest_graph(backend="matplotlib")
+strategy.create_backtest_graph(backend="plotly")

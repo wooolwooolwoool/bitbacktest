@@ -10,13 +10,13 @@ from skopt.space import Integer, Real, Categorical
 
 # Read data for test
 price_data = read_prices_from_sheets("my_data/BitCoinPrice_interp.xlsx",
-                        ["202405", "202406", "202407", "202408"], 5, use_cache=True)
+                        ["202404", "202405", "202406", "202407"], 60, use_cache=True)
 
 # Set parameters
 target_params = {
-    'window_size': Integer(20, 1000),  # 移動平均の期間
-    'num_std_dev': Real(1,2),   # 標準偏差の倍率
-    'buy_count_limit': 999,
+    'window_size': Integer(10, 500),  # 移動平均の期間
+    'num_std_dev': Real(1, 4),   # 標準偏差の倍率
+    'buy_count_limit': 5,
     "one_order_quantity": 0.001
 }
 start_cash = 1e6
@@ -30,7 +30,8 @@ backtester = BayesianBacktester(strategy)
 best_value, best_param = backtester.backtest(target_params, start_cash, n_calls=50)
 
 strategy.reset_all(best_param, start_cash)
-strategy.backtest(hold_params=["upper_band", "lower_band"])
+portfolio_result = strategy.backtest(hold_params=["upper_band", "lower_band"])
+print(portfolio_result)
 
 # Plot graph
 strategy.create_backtest_graph(backend="matplotlib")
