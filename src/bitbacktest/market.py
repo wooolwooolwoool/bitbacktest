@@ -277,7 +277,7 @@ class BitflyerMarket(Market):
         endpoint = '/v1/me/getchildorders'
 
         params = {
-            'product_code': 'BTC_JPY',
+            'product_code': self.product_code,
             'child_order_state': 'ACTIVE',  # 出ている注文だけを取得
         }
         endpoint_for_header = endpoint + '?'
