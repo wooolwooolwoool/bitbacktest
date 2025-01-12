@@ -52,7 +52,13 @@ class BayesianBacktester:
         self.strategy.reset_all(param, self.start_cash, self.start_coin)
         result = self.strategy.backtest()
         total_value = result["total_value"]
-        print(f"param: {param}, total_value: {total_value}")
+        trade_count = result["trade_count"]
+        result_str = f"param: {param}, total_value: {total_value}"
+        try:
+            result_str += f", trade count: {trade_count}"
+        except:
+            pass
+        print(result_str)
         return -total_value
 
     def backtest(self,

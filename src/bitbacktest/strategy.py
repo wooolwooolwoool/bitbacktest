@@ -370,13 +370,14 @@ class BollingerBandsStrategy(Strategy):
         """BollingerBandsSignal
         param = {
             'window_size': window_size,  # 移動平均の期間
-            'num_std_dev': num_std_dev   # 標準偏差の倍率
+            'num_std_dev': num_std_dev,   # 標準偏差の倍率
+            'reverse': reverse   # 売買を逆転 0 or 1
         }
         """
         super().reset_param(param)
         # 動的なパラメータは self.dynamic に保持
         self.dynamic = {
-            'prices': np.array([]),          # 価格の履歴
+            'prices': np.array([], dtype=np.int32),          # 価格の履歴
             'mean': 0,             # 移動平均
             'squared_sum': 0,      # 二乗和（標準偏差計算用）
             'buy_count': 0         # 売買数
@@ -384,7 +385,7 @@ class BollingerBandsStrategy(Strategy):
 
     def generate_signals(self, price):
         # 現在価格をリストに追加
-        self.dynamic['prices'] = np.append(self.dynamic['prices'], price)
+        self.dynamic['prices'] = np.append(self.dynamic['prices'], int(price))
 
         # ウィンドウサイズを超えた場合、古いデータを削除
         if len(self.dynamic['prices']) > self.static['window_size']:
@@ -405,9 +406,15 @@ class BollingerBandsStrategy(Strategy):
 
         # シグナルを判定
         if price > self.dynamic['upper_band']:
-            return "Sell"  # 上限を超えたら売りシグナル
+            if "reverse" in self.static.keys() and str(self.static["reverse"]) == "1":
+                return "Buy"   # 上限を超えたら買いシグナル
+            else:
+                return "Sell"  # 上限を超えたら売りシグナル
         elif price < self.dynamic['lower_band']:
-            return "Buy"   # 下限を割ったら買いシグナル
+            if "reverse" in self.static.keys() and str(self.static["reverse"]) == "1":
+                return "Sell"  # 下限を割ったら売りシグナル
+            else:
+                return "Buy"   # 下限を割ったら買いシグナル
         else:
             return "Hold"  # それ以外は保持
 
