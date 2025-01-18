@@ -69,6 +69,21 @@ class Strategy(ABC):
         """
         pass
 
+    def save_trade_count(self, result):
+        """Save count of result trade to self.dynamic
+
+        Args:
+            result (bool): result of trade
+        """
+        if not 'trade_count_ok' in self.dynamic.keys():
+            self.dynamic['trade_count_ok'] = 0
+        if not 'trade_count_ng' in self.dynamic.keys():
+            self.dynamic['trade_count_ng'] = 0
+        if result:
+            self.dynamic['trade_count_ok'] += 1
+        else:
+            self.dynamic['trade_count_ng'] += 1
+
     def trade_limiter(self) -> bool:
         orders = self.market.get_open_orders()
         ret = (os.environ["TRADE_ENABLE"] == "1"
@@ -392,7 +407,7 @@ class BollingerBandsStrategy(Strategy):
             self.dynamic['prices'] = self.dynamic['prices'][1:]
 
         # 現在のウィンドウ内の価格に基づいて移動平均と標準偏差を計算
-        if len(self.dynamic['prices']) >= self.static['window_size']:
+        if len(self.dynamic['prices']) >= 2:
             mean = np.mean(self.dynamic['prices'])  # 平均を計算
             std_dev = np.std(self.dynamic['prices'])  # 標準偏差を計算
         else:
@@ -404,14 +419,18 @@ class BollingerBandsStrategy(Strategy):
         self.dynamic['upper_band'] = mean + self.static['num_std_dev'] * std_dev
         self.dynamic['lower_band'] = mean - self.static['num_std_dev'] * std_dev
 
+        if len(self.dynamic['prices']) < self.static['window_size']:
+            return "Hold"  # データが十分にない場合はシグナルを出さない
+
         # シグナルを判定
+        #print(self.static.keys(), "reverse" in self.static.keys(), os.environ["reverse"] == "1", str(self.static["reverse"]))
         if price > self.dynamic['upper_band']:
-            if "reverse" in self.static.keys() and str(self.static["reverse"]) == "1":
+            if "reverse" in self.static.keys() and str(int(self.static["reverse"])) == "1":
                 return "Buy"   # 上限を超えたら買いシグナル
             else:
                 return "Sell"  # 上限を超えたら売りシグナル
         elif price < self.dynamic['lower_band']:
-            if "reverse" in self.static.keys() and str(self.static["reverse"]) == "1":
+            if "reverse" in self.static.keys() and str(int(self.static["reverse"])) == "1":
                 return "Sell"  # 下限を割ったら売りシグナル
             else:
                 return "Buy"   # 下限を割ったら買いシグナル
@@ -424,9 +443,10 @@ class BollingerBandsStrategy(Strategy):
                                            self.static["one_order_quantity"])
             if result:
                 self.dynamic['buy_count'] += 1
+            self.save_trade_count(result)
         elif signal == 'Sell' and self.dynamic['buy_count'] > 0:
             result = self.market.place_market_order(signal,
                                            self.static["one_order_quantity"])
             if result:
                 self.dynamic['buy_count'] -= 1
-            
+            self.save_trade_count(result)

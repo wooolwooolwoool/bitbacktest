@@ -214,7 +214,7 @@ class BitflyerMarket(Market):
         order_data = {
             'product_code': self.product_code,
             'child_order_type': 'MARKET',
-            'side': side,
+            'side': side.upper(),
             'size': quantity,
         }
         body = json.dumps(order_data)
