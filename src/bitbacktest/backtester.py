@@ -11,6 +11,11 @@ try:
 except:
     pass
 
+try:
+    import pandas as pd
+except:
+    pass
+
 
 class GridBacktester:
 
@@ -42,6 +47,8 @@ class BayesianBacktester:
     def __init__(self, strategy: Strategy):
         self.strategy = strategy
         self.count = 0
+        self.graph_buffer = None
+        self.log_manager = None
 
     def _backtest_algorithm(self, params):
         self.count += 1
@@ -59,6 +66,14 @@ class BayesianBacktester:
         except:
             pass
         print(result_str)
+        if self.graph_buffer is not None:
+            new_data = pd.DataFrame({'Times': [self.count], 'Total Value(JPY)': [total_value]})
+            self.graph_buffer.send(new_data)
+        if self.log_sender is not None:
+            d = param
+            d["Total_Value"] = total_value
+            self.log_sender.add_log(d)
+
         return -total_value
 
     def backtest(self,
@@ -66,7 +81,9 @@ class BayesianBacktester:
                  start_cash: int,
                  start_coin: float = 0,
                  n_calls: int = 50,
-                 random_state: int = 777):
+                 random_state: int = 777,
+                 graph_buffer=None,
+                 log_sender=None):
         """
         params: dict of params. Optimization parameters should be Integer, Real or Categorical.
             example,
@@ -87,6 +104,10 @@ class BayesianBacktester:
         self.target_params = target_params
         self.n_calls = n_calls
         self.keys = []
+        self.graph_buffer = graph_buffer
+        self.log_sender = log_sender
+        if self.graph_buffer is not None:
+            self.graph_buffer.clear()
         param_ranges_variable = []
 
         for k in self.target_params.keys():

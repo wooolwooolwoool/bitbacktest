@@ -19,7 +19,6 @@ class Order():
 
 
 class Market(ABC):
-
     def __init__(self):
         self.portfolio = {}
         self.hist = {}
@@ -112,11 +111,14 @@ class Market(ABC):
 
 class BacktestMarket(Market):
 
-    def __init__(self, data: np.ndarray, fee_rate: float = 0.0015):
+    def __init__(self, data: np.ndarray,
+                fee_rate: float = 0.0015,
+                allow_neg: bool = False):
         super().__init__()
         self.data = data
         self.index = 0
         self.fee_rate = fee_rate
+        self.allow_neg = allow_neg
 
     def set_current_index(self, index: int):
         self.index = index
@@ -152,7 +154,7 @@ class BacktestMarket(Market):
             return False  # Insufficient funds
 
     def _execute_sell_order(self, quantity: float, price: float) -> bool:
-        if self.portfolio['position'] >= quantity:
+        if self.allow_neg or self.portfolio['position'] >= quantity:
             self.portfolio['cash'] += quantity * price
             self.portfolio['position'] -= quantity
             self.portfolio['position'] -= quantity * self.fee_rate
@@ -196,7 +198,7 @@ class BitflyerMarket(Market):
         self.apikey = None
         self.secret = None
         self.API_URL = 'https://api.bitflyer.jp'
-        self.product_code = 'BTC_JPY'
+        self.product_code = 'FX_BTC_JPY'
 
     def set_apikey(self, apikey, secret):
         self.apikey = apikey
@@ -294,9 +296,110 @@ class BitflyerMarket(Market):
         orders = response.json()
         return orders
 
+    def get_complete_orders(self):
+        # 出ている注文一覧を取得
+        endpoint = '/v1/me/getchildorders'
+
+        params = {
+            'product_code': self.product_code,
+            'child_order_state': 'COMPLETED',  # 出ている注文だけを取得
+        }
+        endpoint_for_header = endpoint + '?'
+        for k, v in params.items():
+            endpoint_for_header += k + '=' + v
+            endpoint_for_header += '&'
+        endpoint_for_header = endpoint_for_header[:-1]
+
+        headers = self.header('GET', endpoint=endpoint_for_header, body="")
+
+        response = requests.get(self.API_URL + endpoint,
+                                headers=headers,
+                                params=params)
+        orders = response.json()
+        return orders
+
     def get_current_price(self):
         # 現在の市場価格を取得
-        ticker_url = f'{self.API_URL}/v1/ticker?product_code={self.product_code}'
+        endpoint = '/v1/ticker?product_code={self.product_code}'
         response = requests.get(ticker_url)
         price = float(response.json()['ltp'])
         return price
+
+    def get_executions(self, count=100, before=None, after=None):
+        endpoint = "/v1/me/getexecutions"
+
+        params = {
+            'product_code': self.product_code,
+            'count': str(int(count)),  # 出ている注文だけを取得
+        }
+        if before is not None:
+            params['before'] = str(before)
+        if after is not None:
+            params['after'] = str(after)
+        endpoint_for_header = endpoint + '?'
+        for k, v in params.items():
+            endpoint_for_header += k + '=' + v
+            endpoint_for_header += '&'
+        endpoint_for_header = endpoint_for_header[:-1]
+
+        headers = self.header('GET', endpoint=endpoint_for_header, body="")
+
+        response = requests.get(self.API_URL + endpoint,
+                                headers=headers,
+                                params=params)
+        executions = response.json()
+        return executions
+
+    def get_executions_all(self, count=100):
+        executions = self.get_executions(count=count)
+        before = executions[-1]["id"]
+        while True:
+            tmp_executions = self.get_executions(count=count, before=before)
+            if len(tmp_executions) == 0:
+                break
+            executions += tmp_executions
+            executions = sorted(executions, key=lambda x: x['exec_date'])
+            before = executions[0]["id"]
+            print(len(executions))
+        return executions
+
+    def calc_profits(self, executions):
+        executions = sorted(executions, key=lambda x: x['exec_date'])
+        profits = []
+        # position  = {"side": "BUY", "size": 0, "price": 0, "exec_date": "2025-01-24T17:22:42.133"}
+        current_positions = []
+        date_format = "%Y-%m-%dT%H:%M:%S.%f"
+        dates = []
+        for exe in executions:
+            tmp_profit = 0
+            if exe["side"] == "BUY":
+                for current_position in current_positions:
+                    if current_position["side"] == "SELL":
+                        if current_position["size"] > exe["size"]:
+                            current_position["size"] -= exe["size"]
+                            tmp_profit += ((current_position["price"] - exe["price"]) * exe["size"])
+                            exe["size"] = 0
+                        else:
+                            exe["size"] -= current_position["size"]
+                            tmp_profit += (current_position["price"] - exe["price"]) * current_position["size"]
+                            current_positions.remove(current_position)
+                    else:
+                        pass
+            else:
+                for current_position in current_positions:
+                    if current_position["side"] == "BUY":
+                        if current_position["size"] > exe["size"]:
+                            current_position["size"] -= exe["size"]
+                            tmp_profit += ((exe["price"] - current_position["price"]) * exe["size"])
+                            exe["size"] = 0
+                        else:
+                            exe["size"] -= current_position["size"]
+                            tmp_profit += ((exe["price"] - current_position["price"]) * current_position["size"])
+                            current_positions.remove(current_position)
+                    else:
+                        pass
+            if exe["size"] > 0:
+                current_positions.append(exe)
+            profits.append(tmp_profit)
+            dates.append(datetime.strptime(exe["exec_date"], date_format))
+        return dates, profits
