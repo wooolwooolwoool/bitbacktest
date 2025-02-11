@@ -321,7 +321,7 @@ class BitflyerMarket(Market):
     def get_current_price(self):
         # 現在の市場価格を取得
         endpoint = '/v1/ticker?product_code={self.product_code}'
-        response = requests.get(ticker_url)
+        response = requests.get(self.API_URL + endpoint)
         price = float(response.json()['ltp'])
         return price
 
@@ -385,6 +385,8 @@ class BitflyerMarket(Market):
                             current_positions.remove(current_position)
                     else:
                         pass
+                    if exe["size"] == 0:
+                        break
             else:
                 for current_position in current_positions:
                     if current_position["side"] == "BUY":
@@ -398,6 +400,8 @@ class BitflyerMarket(Market):
                             current_positions.remove(current_position)
                     else:
                         pass
+                    if exe["size"] == 0:
+                        break
             if exe["size"] > 0:
                 current_positions.append(exe)
             profits.append(tmp_profit)
