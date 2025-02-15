@@ -133,7 +133,10 @@ class BacktestStrategy(Strategy):
     def backtest_history(self):
         return self.market.hist
 
-    def create_backtest_graph(self, output_filename="plot_signal", backend: Literal['plotly', 'matplotlib'] ="matplotlib"):
+    def create_backtest_graph(self, output_filename="plot_signal",
+            backend: Literal['plotly', 'matplotlib', "holoviews"] ="matplotlib",
+            save_graph: bool = True):
+        graph_obj = None
 
         buy_signals = [
             signal[1] for signal in self.backtest_history["signals"]["Buy"]
@@ -217,13 +220,16 @@ class BacktestStrategy(Strategy):
             plt.xlim(0, len(price_data))
 
             fig.legend(loc="upper right")
-            fig.savefig(output_filename + ".png")
+            if save_graph:
+                fig.savefig(output_filename + ".png")
+                print(f"save to {output_filename}.png")
 
-            print(f"save to {output_filename}.png")
+            graph_obj = fig
 
         elif backend == "plotly":
             import plotly.graph_objects as go
             from plotly.subplots import make_subplots
+            import numpy as np
 
             fig = make_subplots(specs=[[{"secondary_y": True}]])
             fig.add_trace(
@@ -273,10 +279,91 @@ class BacktestStrategy(Strategy):
             fig.update_traces(marker=dict(
                 size=12, line=dict(width=2, color='DarkSlateGrey'), opacity=0.8))
 
-            fig.write_html(output_filename + ".html")
+            if save_graph:
+                fig.write_html(output_filename + ".html")
+                print(f"save to {output_filename}.html")
 
-            print(f"save to {output_filename}.html")
-        return
+            graph_obj = fig
+        elif backend == "holoviews":
+            import holoviews as hv
+            from holoviews import opts
+            import numpy as np
+            from bokeh.models import LinearAxis, Range1d
+
+            # Holoviewsの拡張機能を有効化
+            hv.extension('bokeh')
+
+            # 価格データの折れ線グラフ
+            price_curve = hv.Curve((range(len(price_data)), price_data),
+                    label="Price Data").opts(color='blue', yaxis='left',
+                    ylim=(min(price_data) * 0.95, max(price_data) * 1.05))
+
+            # 総価値データの折れ線グラフ（第2Y軸）
+            value_curve = hv.Curve((range(len(value_hist)), value_hist),
+                    label="Total Value").opts(color='red', yaxis='right',
+                    ylim=(min(value_hist) * 0.95, max(value_hist) * 1.05))
+
+            # 買いシグナルのマーカー
+            buy_signals_scatter = hv.Scatter((buy_signals_pos, buy_signals), label="buy_signals").opts(
+                marker='circle', size=10, line_color='blue', fill_color=None)
+
+            # 実行された買いシグナルのマーカー
+            exe_buy_signals_scatter = hv.Scatter((exe_buy_signals_pos, exe_buy_signals), label="exe_buy_signals").opts(
+                marker='circle', size=10, color='blue')
+
+            # 売りシグナルのマーカー
+            sell_signals_scatter = hv.Scatter((sell_signals_pos, sell_signals), label="sell_signals").opts(
+                marker='circle', size=10, line_color='red', fill_color=None)
+
+            # 実行された売りシグナルのマーカー
+            exe_sell_signals_scatter = hv.Scatter((exe_sell_signals_pos, exe_sell_signals), label="exe_sell_signals").opts(
+                marker='circle', size=10, color='red')
+
+            # グラフを重ね合わせ
+            overlay = (price_curve * value_curve * buy_signals_scatter * exe_buy_signals_scatter *
+                    sell_signals_scatter * exe_sell_signals_scatter)
+
+            # フックを使って2軸を適用
+            def modify_doc(plot, element):
+                p = plot.state
+
+                # 右Y軸を設定（Total Value (BTC)）
+                p.extra_y_ranges = {"right": Range1d(start=min(value_hist) * 0.95, end=max(value_hist) * 1.05)}
+                right_axis = LinearAxis(y_range_name="right", axis_label="Total Value (BTC)")
+
+                # 既存のラベルを変更
+                p.yaxis[0].axis_label = "BTC Price (JPY)"
+
+                # 右Y軸を追加（重複しないようにチェック）
+                if len(p.yaxis) < 2:
+                    p.add_layout(right_axis, 'right')
+
+                # 赤色の折れ線を右Y軸に関連付け
+                for r in p.renderers:
+                    if r.glyph.line_color == "red":
+                        r.y_range_name = "right"
+
+            # グラフの設定
+            overlay.opts(
+                opts.Curve(yaxis='left'),  # 左側のY軸
+                opts.Curve(yaxis='right', hooks=[modify_doc]),  # 右側のY軸
+                opts.Scatter(size=10, line_width=2),  # マーカーの設定
+                opts.Overlay(
+                    title="Signals",
+                    legend_position='right',
+                    fontsize={'title': 12, 'labels': 10},
+                    width=1600,  # 幅を1200ピクセルに
+                    height=600   # 高さを600ピクセルに
+                )
+            )
+
+            if save_graph:
+                # HTMLとして保存
+                hv.save(overlay, output_filename + '.html')
+                print(f"save to {output_filename}.html")
+
+            graph_obj = overlay
+        return graph_obj
 
 
 

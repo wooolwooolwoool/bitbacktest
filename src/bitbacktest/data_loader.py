@@ -4,6 +4,7 @@ import os
 import hashlib
 import json
 import datetime
+import functools
 
 def compute_checksum(file_path: str) -> str:
     """Excelファイルのチェックサム（SHA-256）を計算する"""
@@ -13,6 +14,7 @@ def compute_checksum(file_path: str) -> str:
             hash_sha256.update(chunk)
     return hash_sha256.hexdigest()
 
+@functools.cache
 def read_prices_from_chash(file_path, use_cache=True):
     # キャッシュファイルとチェックサムファイルのパス
     cache_file = file_path.replace('.xlsx', '_cache.npy')

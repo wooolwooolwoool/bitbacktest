@@ -82,8 +82,11 @@ load_execution_history(None)
 
 # Layout
 page = pn.Column(
-    fetch_button,
-    load_button,
+    pn.Row(
+        fetch_button,
+        load_button,
+    ),
+    pn.pane.Markdown("## Execution History"),
     log_pane,
     scatter_panel,
     logbox

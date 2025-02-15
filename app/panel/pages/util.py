@@ -25,6 +25,7 @@ class LogBox():
     def update_log(self, message):
         self.log_messages.append(f"{datetime.datetime.now()}: {message}")
         self.log_widget.object = "<br>".join(self.log_messages)
+        print(message)
 
 
 class LogQueue():
@@ -81,3 +82,59 @@ class DataFrameLogManager:
     def stop_thread(self):
         """Stop the log processing thread."""
         self.log_queue.put(None)
+
+class ParameterManager:
+    """Class to manage parameter settings."""
+    def __init__(self, params, only_constant=False):
+        self.params = params
+        self.widgets = {}
+        self.only_constant = only_constant
+        self.param_pane = self._create_widgets()
+
+    def _create_widgets(self):
+        """Create widgets for parameter settings."""
+        grid = pn.GridSpec(width=800, height=50 * (len(self.params.items()) + 1))
+        grid[0, 0] = pn.pane.Str("Key")
+        grid[0, 1] = pn.pane.Str("Type")
+        grid[0, 2] = pn.pane.Str("Lower")
+        grid[0, 3] = pn.pane.Str("Upper")
+        grid[0, 4] = pn.pane.Str("Value")
+        for i, (key, value) in enumerate(self.params.items()):
+            grid[i+1, 0] = pn.pane.Str(key)
+            grid[i+1, 1] = param_type = pn.widgets.Select(options=["Integer", "Real", "Constant"], value="Constant")
+            grid[i+1, 2] = lower = pn.widgets.FloatInput(value=value[0] if isinstance(value, tuple) else None, disabled=True)
+            grid[i+1, 3] = upper = pn.widgets.FloatInput(value=value[1] if isinstance(value, tuple) else None, disabled=True)
+            grid[i+1, 4] = constant = pn.widgets.FloatInput(value=value if not isinstance(value, tuple) else None, disabled=False)
+
+            def update_visibility(event, u=upper, l=lower, c=constant):
+                if event.new == "Constant":
+                    u.disabled, l.disabled, c.disabled = True, True, False
+                else:
+                    u.disabled, l.disabled, c.disabled = False, False, True
+
+            param_type.param.watch(update_visibility, "value")
+            if self.only_constant:
+                param_type.disabled = True
+                lower.disabled = True
+                upper.disabled = True
+                param_type.value = "Constant"
+
+            self.widgets[key] = (param_type, upper, lower, constant)
+        return pn.Column(grid)
+
+    def get_params(self):
+        """Get the current parameter values."""
+        result = {}
+        for key, (param_type, upper, lower, constant) in self.widgets.items():
+            if param_type.value == "Constant":
+                result[key] = constant.value
+            elif param_type.value == "Integer":
+                result[key] = Integer(int(lower.value), int(upper.value))
+            elif param_type.value == "Real":
+                result[key] = Real(lower.value, upper.value)
+        return result
+
+datetime_range_picker = pn.widgets.DatetimeRangePicker(
+    name='Datetime Range Picker',
+    value=(datetime.datetime(2024, 11, 20, 12, 00), datetime.datetime(2025, 2, 28, 12, 00)),
+)
