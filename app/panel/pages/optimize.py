@@ -1,17 +1,12 @@
 import sys
 import os
-import json
 import threading
-from multiprocessing import Queue
 import numpy as np
 import pandas as pd
 import panel as pn
 import holoviews as hv
 hv.extension("bokeh")
 from holoviews.streams import Buffer
-from skopt.space import Integer, Real, Categorical
-import yaml
-import datetime
 import traceback
 
 # Add local module path
@@ -25,7 +20,7 @@ from src.bitbacktest.signal_generator import SignalGenerator
 from src.bitbacktest.trade_executor import TradeExecutor
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from util import LogBox, DataFrameLogManager, datetime_range_picker, ParameterManager
+from util import LogBox, DataFrameLogManager, datetime_range_picker, ParameterManager, save_result_summary
 
 logbox = LogBox()
 
@@ -35,34 +30,10 @@ custom_classes = {'SignalGenerator': {}, 'TradeExecutor': {}}
 DATA_PATH = "my_data/BitCoinPrice_interp.xlsx"
 DATA_INTERVAL = 10
 
-def convert_to_standard_types(data):
-    """Convert NumPy data types in a dictionary to standard Python types."""
-    if isinstance(data, dict):
-        return {k: convert_to_standard_types(v) for k, v in data.items()}
-    elif isinstance(data, (np.integer, np.floating)):
-        return data.item()
-    elif isinstance(data, list):
-        return [convert_to_standard_types(item) for item in data]
-    return data
-
-def save_result_summary(data_path, data_range, data_interval, params, portfolio_result):
-    """Save the result summary to a YAML file."""
-    now = datetime.datetime.now()
-    summary = {
-        "data_path": data_path,
-        "data_range": str(data_range),
-        "data_interval": str(data_interval),
-        "params": convert_to_standard_types(params),
-        "portfolio_result": portfolio_result
-    }
-    now_str = now.strftime("%Y%m%d_%H%M%S")
-    with open(f"my_data/result_{now_str}.yaml", "w") as f:
-        yaml.dump(summary, f, default_flow_style=False, allow_unicode=True)
-
 # Data stream for real-time plotting
 buffer = Buffer(pd.DataFrame({'Times': [], 'Total Value(JPY)': []}), length=200, index=False)
 scatter = hv.DynamicMap(hv.Scatter, streams=[buffer])
-scatter.opts(title="Backtest Result", xlabel="Time", ylabel="Value", width=700, height=400, size=8, color="blue")
+scatter.opts(title="Backtest Result", xlabel="Time", ylabel="Value", width=1000, height=400, size=8, color="blue")
 
 hline = hv.HLine(0).opts(color="red", line_width=1, line_dash="dashed")
 overlay = scatter * hline
@@ -73,11 +44,11 @@ is_running = [False]
 
 # Initialize log manager
 log_manager = DataFrameLogManager()
-log_queue = log_manager.get_log_queue()
+df_log_queue = log_manager.get_log_queue()
 log_thread = log_manager.start_thread()
 
 # General settings grid
-general_grid = pn.GridSpec(width=800, height=20 * (3 + 1))
+general_grid = pn.GridSpec(width=600, height=20 * (3 + 1))
 general_grid[0, 0] = pn.pane.Str("n_calls")
 general_grid[0, 1] = n_calls_w = pn.widgets.IntInput(value=10, disabled=False)
 general_grid[1, 0] = pn.pane.Str("start_cash")
@@ -121,9 +92,13 @@ def exec_optimize():
             start_coin=start_coin_w.value,
             n_calls=n_calls_w.value,
             graph_buffer=buffer,
-            log_sender=log_queue
+            df_log_queue=df_log_queue
         )
         logbox.update_log(f"Best value: {best_value}")
+        save_path = save_result_summary(DATA_PATH, datetime_range, DATA_INTERVAL, best_param,
+                            market.portfolio, signal_generator_select.value, trade_executor_select.value)
+        logbox.update_log(f"Result saved to {save_path}")
+
     except Exception as e:
         logbox.update_log(f"Error: {e}")
         logbox.update_log(traceback.format_exc())
@@ -135,10 +110,10 @@ def start_optimize(event):
         is_running[0] = True
         backtest_thread = threading.Thread(target=exec_optimize, daemon=True)
         backtest_thread.start()
-        button.name = "Cancel"
+        # button.name = "Cancel"
     else:
-        log_manager.stop_thread()
-        is_running[0] = False
+        # log_manager.stop_thread()
+        # is_running[0] = False
         button.name = "Start"
 
 # Create and configure the button
@@ -169,6 +144,17 @@ def get_custom_classes():
                         logbox.update_log(traceback.format_exc())
     return custom_classes
 
+def reload_sg_te(event):
+    """Reload the SignalGenerator and TradeExecutor classes."""
+    global custom_classes, signal_generator_select, trade_executor_select
+    custom_classes = get_custom_classes()
+    signal_generator_select.options = list(custom_classes['SignalGenerator'].keys())
+    trade_executor_select.options = list(custom_classes['TradeExecutor'].keys())
+    logbox.update_log("Reloaded SignalGenerator and TradeExecutor classes")
+
+reload_button = pn.widgets.Button(name="Reload SG and TE", button_type="primary")
+reload_button.on_click(reload_sg_te)
+
 # Dropdown widgets for custom classes
 custom_classes = get_custom_classes()
 signal_generator_select = pn.widgets.Select(name='Signal Generator', options=list(custom_classes['SignalGenerator'].keys()))
@@ -188,48 +174,27 @@ def update_params(event):
     logbox.update_log(f"Updated parameters: {signal_generator_select.value}, {trade_executor_select.value}")
     return param_manager.param_pane
 
-# File upload widget
-file_input = pn.widgets.FileInput(name='Upload .py file', accept='.py')
-
-def save_file(event):
-    """Save uploaded file to my_data/custom_src directory."""
-    global custom_classes, signal_generator_select, trade_executor_select
-    os.makedirs('my_data/custom_src', exist_ok=True)
-    if file_input.value is not None:
-        file_path = os.path.join('my_data/custom_src', file_input.filename)
-        with open(file_path, 'wb') as f:
-            f.write(file_input.value)
-        logbox.update_log(f"File {file_input.filename} saved to {file_path}")
-    custom_classes = get_custom_classes()
-    signal_generator_select = pn.widgets.Select(name='Signal Generator', options=list(custom_classes['SignalGenerator'].keys()))
-    trade_executor_select = pn.widgets.Select(name='Trade Executor', options=list(custom_classes['TradeExecutor'].keys()))
-
-file_input.param.watch(save_file, 'value')
-
 # Add file upload and dropdowns to the layout
 page = pn.Row(
-    pn.Column(
-        pn.pane.Markdown("# バックテスト"),
-        pn.pane.Markdown("## カスタムファイルアップロード"),
-        file_input,
-        pn.pane.Markdown("## カスタムクラス選択"),
+    pn.layout.WidgetBox(
+        pn.pane.Markdown("## Select custom classes"),
         pn.Row(
             signal_generator_select,
             trade_executor_select,
         ),
+        reload_button,
+        pn.pane.Markdown("## Optimeze settings"),
         general_grid,
-        pn.pane.Markdown("## パラメータ設定"),
-        update_params,
-        pn.pane.Markdown("## データ範囲指定"),
+        pn.pane.Markdown("## Date range"),
         datetime_range_picker,
+        pn.pane.Markdown("## Parameter settings"),
+        update_params,
         button,
-        pn.pane.Markdown("## ログ"),
+        pn.pane.Markdown("## Log"),
         logbox.widget,
     ),
     pn.Column(
         scatter_panel,
-        pn.pane.Markdown("## ログ"),
         log_manager.log_pane,
-    ),
+    )
 )
-

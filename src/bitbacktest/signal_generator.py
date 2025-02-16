@@ -10,7 +10,8 @@ class SignalGenerator(ABC):
         self.static = self.default_param
 
     def reset_param(self, param):
-        self.static = param
+        if param is not None:
+            self.static = param
 
     @property
     def default_param(self):
@@ -128,11 +129,6 @@ class MACDSG(SignalGenerator):
                 signal = "Sell"
         return signal
 
-    def execute_trade(self, price, signal):
-        if signal in ['Buy', "Sell"]:
-            self.place_market_order(signal,
-                                           self.static["one_order_quantity"])
-
 class BollingerBandsSG(SignalGenerator):
     @property
     def default_param(self):
@@ -156,7 +152,9 @@ class BollingerBandsSG(SignalGenerator):
             'prices': np.array([], dtype=np.int32),          # 価格の履歴
             'mean': 0,             # 移動平均
             'squared_sum': 0,      # 二乗和（標準偏差計算用）
-            'buy_count': 0         # 売買数
+            'buy_count': 0,         # 売買数
+            'upper_band': 0,
+            'lower_band': 0
         }
 
     def generate_signals(self, price):

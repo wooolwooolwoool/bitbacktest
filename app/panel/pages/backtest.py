@@ -1,17 +1,9 @@
 import sys
 import os
-import json
-import threading
-from multiprocessing import Queue
 import numpy as np
-import pandas as pd
 import panel as pn
 import holoviews as hv
 hv.extension("bokeh")
-from holoviews.streams import Buffer
-from skopt.space import Integer, Real, Categorical
-import yaml
-import datetime
 import traceback
 
 # Add local module path
@@ -24,7 +16,7 @@ from src.bitbacktest.signal_generator import SignalGenerator
 from src.bitbacktest.trade_executor import TradeExecutor
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from util import LogBox, DataFrameLogManager, datetime_range_picker, ParameterManager
+from util import LogBox, datetime_range_picker, ParameterManager, load_result_summary
 
 scatter_panel = pn.pane.HoloViews()
 
@@ -40,6 +32,9 @@ custom_classes = {'SignalGenerator': {}, 'TradeExecutor': {}}
 # Constants
 DATA_PATH = "my_data/BitCoinPrice_interp.xlsx"
 DATA_INTERVAL = 10
+
+hold_dynamic_checkbox_group = pn.widgets.CheckBoxGroup(
+    name='Hold dynamic value', value=[], options=[])
 
 # General settings grid
 general_grid = pn.GridSpec(width=600, height=20 * (3 + 1))
@@ -79,38 +74,45 @@ custom_classes = get_custom_classes()
 signal_generator_select = pn.widgets.Select(name='Signal Generator', options=list(custom_classes['SignalGenerator'].keys()))
 trade_executor_select = pn.widgets.Select(name='Trade Executor', options=list(custom_classes['TradeExecutor'].keys()))
 
+def reload_sg_te(event):
+    """Reload the SignalGenerator and TradeExecutor classes."""
+    global custom_classes, signal_generator_select, trade_executor_select
+    custom_classes = get_custom_classes()
+    signal_generator_select.options = list(custom_classes['SignalGenerator'].keys())
+    trade_executor_select.options = list(custom_classes['TradeExecutor'].keys())
+    logbox.update_log("Reloaded SignalGenerator and TradeExecutor classes")
+
+reload_button = pn.widgets.Button(name="Reload SG and TE", button_type="primary")
+reload_button.on_click(reload_sg_te)
 
 @pn.depends(signal_generator_select.param.value)
 @pn.depends(trade_executor_select.param.value)
 def update_params(event):
     """Update the parameter settings."""
-    global param_manager
+    global param_manager, hold_dynamic_checkbox_group
     market = BacktestMarket([])
     signal_gene = custom_classes['SignalGenerator'][signal_generator_select.value]()
     trade_exec = custom_classes['TradeExecutor'][trade_executor_select.value]()
     strategy = BacktestStrategy(market, signal_gene, trade_exec)
 
     param_manager = ParameterManager(strategy.default_param, only_constant=True)
+    strategy.reset_all({}, 0)
+    hold_dynamic_checkbox_group.options = list(strategy.get_all_dynamic().keys())
     logbox.update_log(f"Updated parameters: {signal_generator_select.value}, {trade_executor_select.value}")
     return param_manager.param_pane
 
 # File upload widget
-file_input = pn.widgets.FileInput(name='Upload .py file', accept='.py')
+file_input_yaml = pn.widgets.FileInput(name='', accept='.yaml')
 
-def save_file(event):
+def load_yaml_file(event):
     """Save uploaded file to my_data/custom_src directory."""
     global custom_classes, signal_generator_select, trade_executor_select
-    os.makedirs('my_data/custom_src', exist_ok=True)
-    if file_input.value is not None:
-        file_path = os.path.join('my_data/custom_src', file_input.filename)
-        with open(file_path, 'wb') as f:
-            f.write(file_input.value)
-        logbox.update_log(f"File {file_input.filename} saved to {file_path}")
-    custom_classes = get_custom_classes()
-    signal_generator_select = pn.widgets.Select(name='Signal Generator', options=list(custom_classes['SignalGenerator'].keys()))
-    trade_executor_select = pn.widgets.Select(name='Trade Executor', options=list(custom_classes['TradeExecutor'].keys()))
+    signal_generator_name, trade_executor_name, param = load_result_summary(file_input_yaml.value)
+    trade_executor_select.value = trade_executor_name
+    signal_generator_select.value = signal_generator_name
+    param_manager.set_params(param)
 
-file_input.param.watch(save_file, 'value')
+file_input_yaml.param.watch(load_yaml_file, 'value')
 
 def exec_backtest(event):
     try:
@@ -123,7 +125,7 @@ def exec_backtest(event):
         os.environ["ORDER_NUM_MAX"] = "10"
         target_params = param_manager.get_params()
 
-        market = BacktestMarket(price_data, fee_rate=0)
+        market = BacktestMarket(price_data, dates=dates, fee_rate=0, allow_neg=True)
         signal_gene = custom_classes['SignalGenerator'][signal_generator_select.value]()
         trade_exec = custom_classes['TradeExecutor'][trade_executor_select.value]()
 
@@ -133,38 +135,42 @@ def exec_backtest(event):
         strategy = BacktestStrategy(market, signal_gene, trade_exec)
         strategy.reset_all(target_params, start_cash_w.value, start_coin_w.value)
 
-        portfolio_result = strategy.backtest(hold_params=[])
+        portfolio_result = strategy.backtest(hold_params=hold_dynamic_checkbox_group.value)
         logbox.update_log(portfolio_result)
         logbox.update_log(f"Profit rate: {portfolio_result['total_value'] / start_cash_w.value}")
 
         # Plot graph
-        graph = strategy.create_backtest_graph(backend="holoviews")
+        graph = strategy.create_backtest_graph(backend="holoviews", save_graph=True)
         scatter_panel.object = graph
+        logbox.update_log("Backtest completed")
     except Exception as e:
         logbox.update_log(f"Error: {e}")
         logbox.update_log(traceback.format_exc())
-
 
 # Create and configure the button
 button = pn.widgets.Button(name="Start Backtest", button_type="primary")
 button.on_click(exec_backtest)
 
-page = pn.Column(
-    pn.pane.Markdown("# バックテスト"),
-    pn.pane.Markdown("## カスタムファイルアップロード"),
-    file_input,
-    pn.pane.Markdown("## カスタムクラス選択"),
-    pn.Row(
-        signal_generator_select,
-        trade_executor_select,
+page = pn.Row(
+    pn.layout.WidgetBox(
+        pn.pane.Markdown("## Load result summary"),
+        file_input_yaml,
+        pn.pane.Markdown("## Select custom classes"),
+        pn.Row(
+            signal_generator_select,
+            trade_executor_select,
+        ),
+        reload_button,
+        pn.pane.Markdown("## Optimeze settings"),
+        general_grid,
+        pn.pane.Markdown("## Date range"),
+        datetime_range_picker,
+        pn.pane.Markdown("## Parameter settings"),
+        update_params,
+        hold_dynamic_checkbox_group,
+        button,
+        pn.pane.Markdown("## Log"),
+        logbox.widget,
     ),
-    general_grid,
-    pn.pane.Markdown("## パラメータ設定"),
-    update_params,
-    pn.pane.Markdown("## データ範囲指定"),
-    datetime_range_picker,
-    button,
     scatter_panel,
-    pn.pane.Markdown("## ログ"),
-    logbox.widget,
 )

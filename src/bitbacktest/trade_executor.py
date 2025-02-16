@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Literal
 import os
 
-class TradeExecutor():
+class TradeExecutor(ABC):
     def __init__(self):
         self.dynamic = {}
         self.static = self.default_param
@@ -12,6 +12,7 @@ class TradeExecutor():
     def reset_param(self, param):
         self.static = param
 
+    @abstractmethod
     def execute_trade(self, price, signal):
         pass
 

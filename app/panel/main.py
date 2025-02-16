@@ -4,7 +4,7 @@ import datetime
 import panel as pn
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from pages import optimize, bitflyer, datacheck, backtest
+from pages import optimize, bitflyer, datacheck, backtest, other
 
 js_files = {'jquery': 'https://code.jquery.com/jquery-1.11.1.min.js',
             'goldenlayout': 'https://golden-layout.com/files/latest/js/goldenlayout.min.js'}
@@ -16,10 +16,11 @@ pn.extension('vtk', js_files=js_files, css_files=css_files, design='material', t
 
 # Layout the Panel app
 layout = pn.Tabs(
+    ('Data Check', datacheck.page),
     ('Optimize', optimize.page),
     ('Backtest', backtest.page),
     ('Bitflyer', bitflyer.page),
-    ('Data Check', datacheck.page),
+    ('Other', other.page),
 )
 
 # Serve the app

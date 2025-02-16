@@ -69,10 +69,11 @@ class BayesianBacktester:
         if self.graph_buffer is not None:
             new_data = pd.DataFrame({'Times': [self.count], 'Total Value(JPY)': [total_value]})
             self.graph_buffer.send(new_data)
-        if self.log_sender is not None:
+        if self.df_log_queue is not None:
             d = param
+            d["Trade_Count"] = trade_count
             d["Total_Value"] = total_value
-            self.log_sender.add_log(d)
+            self.df_log_queue.add_log(d)
 
         return -total_value
 
@@ -83,7 +84,7 @@ class BayesianBacktester:
                  n_calls: int = 50,
                  random_state: int = 777,
                  graph_buffer=None,
-                 log_sender=None):
+                 df_log_queue=None):
         """
         params: dict of params. Optimization parameters should be Integer, Real or Categorical.
             example,
@@ -98,6 +99,8 @@ class BayesianBacktester:
         start_coin: float, start coin
         n_calls: int, number of calls
         random_state: int, random state
+        graph_buffer: Buffer object for graph
+        df_log_queue: DataFrameLogManager object for log
         """
         self.start_cash = start_cash
         self.start_coin = start_coin
@@ -105,7 +108,7 @@ class BayesianBacktester:
         self.n_calls = n_calls
         self.keys = []
         self.graph_buffer = graph_buffer
-        self.log_sender = log_sender
+        self.df_log_queue = df_log_queue
         if self.graph_buffer is not None:
             self.graph_buffer.clear()
         param_ranges_variable = []

@@ -103,7 +103,7 @@ class BacktestStrategy(Strategy):
         if not "ORDER_NUM_MAX" in os.environ.keys():
             os.environ["ORDER_NUM_MAX"] = "99999"
 
-        for _ in tqdm(range(len(self.market))):
+        for i in tqdm(range(len(self.market))):
             self.dynamic["count"] += 1
             self.market.set_current_index(self.dynamic["count"] - 1)
             price = self.market.get_current_price()
@@ -113,7 +113,10 @@ class BacktestStrategy(Strategy):
             self.market.check_order()
             self.market.save_history(price)
             for p in hold_params:
-                self.hold_params[p].append(self.get_all_dynamic()[p])
+                if p in self.signal_generator.dynamic.keys():
+                    self.hold_params[p].append(self.signal_generator.dynamic[p])
+                elif p in self.trade_executor.dynamic.keys():
+                    self.hold_params[p].append(self.trade_executor.dynamic[p])
         return self.market.portfolio
 
     def reset_all(self, param: dict, start_cash: int, start_coin: float = 0):
@@ -135,7 +138,7 @@ class BacktestStrategy(Strategy):
 
     def create_backtest_graph(self, output_filename="plot_signal",
             backend: Literal['plotly', 'matplotlib', "holoviews"] ="matplotlib",
-            save_graph: bool = True):
+            save_graph: bool = True, width=1000, height=600):
         graph_obj = None
 
         buy_signals = [
@@ -162,6 +165,7 @@ class BacktestStrategy(Strategy):
         exe_sell_signals_pos = [
             signal[0] for signal in self.backtest_history["execute_signals"]["Sell"]
         ]
+        dates = self.market.dates
         price_data = self.market.data
         value_hist = self.backtest_history["total_value_hist"]
 
@@ -289,71 +293,107 @@ class BacktestStrategy(Strategy):
             from holoviews import opts
             import numpy as np
             from bokeh.models import LinearAxis, Range1d
+            from bokeh.models import DatetimeTickFormatter
 
             # Holoviewsの拡張機能を有効化
             hv.extension('bokeh')
 
-            # 価格データの折れ線グラフ
-            price_curve = hv.Curve((range(len(price_data)), price_data),
-                    label="Price Data").opts(color='blue', yaxis='left',
-                    ylim=(min(price_data) * 0.95, max(price_data) * 1.05))
-
-            # 総価値データの折れ線グラフ（第2Y軸）
-            value_curve = hv.Curve((range(len(value_hist)), value_hist),
-                    label="Total Value").opts(color='red', yaxis='right',
-                    ylim=(min(value_hist) * 0.95, max(value_hist) * 1.05))
-
-            # 買いシグナルのマーカー
-            buy_signals_scatter = hv.Scatter((buy_signals_pos, buy_signals), label="buy_signals").opts(
-                marker='circle', size=10, line_color='blue', fill_color=None)
-
-            # 実行された買いシグナルのマーカー
-            exe_buy_signals_scatter = hv.Scatter((exe_buy_signals_pos, exe_buy_signals), label="exe_buy_signals").opts(
-                marker='circle', size=10, color='blue')
-
-            # 売りシグナルのマーカー
-            sell_signals_scatter = hv.Scatter((sell_signals_pos, sell_signals), label="sell_signals").opts(
-                marker='circle', size=10, line_color='red', fill_color=None)
-
-            # 実行された売りシグナルのマーカー
-            exe_sell_signals_scatter = hv.Scatter((exe_sell_signals_pos, exe_sell_signals), label="exe_sell_signals").opts(
-                marker='circle', size=10, color='red')
-
-            # グラフを重ね合わせ
-            overlay = (price_curve * value_curve * buy_signals_scatter * exe_buy_signals_scatter *
-                    sell_signals_scatter * exe_sell_signals_scatter)
+            graphs = []
 
             # フックを使って2軸を適用
             def modify_doc(plot, element):
                 p = plot.state
-
-                # 右Y軸を設定（Total Value (BTC)）
-                p.extra_y_ranges = {"right": Range1d(start=min(value_hist) * 0.95, end=max(value_hist) * 1.05)}
-                right_axis = LinearAxis(y_range_name="right", axis_label="Total Value (BTC)")
 
                 # 既存のラベルを変更
                 p.yaxis[0].axis_label = "BTC Price (JPY)"
 
                 # 右Y軸を追加（重複しないようにチェック）
                 if len(p.yaxis) < 2:
+                    # 右Y軸を設定（Total Value (JPY)）
+                    p.extra_y_ranges = {"right": Range1d(start=min(value_hist), end=max(value_hist))}
+                    right_axis = LinearAxis(y_range_name="right", axis_label="Total Value (JPY)")
                     p.add_layout(right_axis, 'right')
 
-                # 赤色の折れ線を右Y軸に関連付け
+                # Total Valueの折れ線を右Y軸に関連付け
                 for r in p.renderers:
-                    if r.glyph.line_color == "red":
+                    if r.name == "Total Value" and r.y_range_name != "right":
                         r.y_range_name = "right"
 
+                # **背景にグリッド線を追加**
+                p.xgrid.grid_line_color = "gray"  # X軸のグリッド線をグレーに
+                p.ygrid.grid_line_color = "gray"  # Y軸のグリッド線をグレーに
+                p.xgrid.grid_line_alpha = 0.5  # X軸グリッド線の透明度（0:透明 ～ 1:不透明）
+                p.ygrid.grid_line_alpha = 0.5  # Y軸グリッド線の透明度
+
+            # 価格データの折れ線グラフ
+            graphs.append(hv.Curve((dates, price_data),
+                    label="Price Data").opts(color='blue', yaxis='left',
+                    ylim=(min(price_data), max(price_data))))
+
+            # 総価値データの折れ線グラフ（第2Y軸）
+            graphs.append(hv.Curve((dates, value_hist),
+                    label="Total Value").opts(color='red', yaxis='right',
+                    ylim=(min(value_hist), max(value_hist))))
+
+            if len(self.hold_params.keys()) != 0:
+                for k, v in self.hold_params.items():
+                    graphs.append(hv.Curve((dates, v),
+                            label=k).opts(yaxis='left'))
+
+            if len(buy_signals_pos) != 0:
+                # 買いシグナルのマーカー
+                buy_signals_pos_dates = [dates[i] for i in buy_signals_pos]
+                graphs.append(hv.Scatter((buy_signals_pos_dates, buy_signals), label="buy_signals").opts(
+                    marker='circle', size=20, line_color='blue',
+                    fill_color=None, alpha=0.5))
+
+            if len(exe_buy_signals_pos) != 0:
+                # 実行された買いシグナルのマーカー
+                exe_buy_signals_pos_dates = [dates[i] for i in exe_buy_signals_pos]
+                graphs.append(hv.Scatter((exe_buy_signals_pos_dates, exe_buy_signals), label="exe_buy_signals").opts(
+                    marker='circle', size=20, line_color='gray', color='blue', alpha=0.5))
+
+            if len(sell_signals_pos) != 0:
+                # 売りシグナルのマーカー
+                sell_signals_pos_dates = [dates[i] for i in sell_signals_pos]
+                graphs.append(hv.Scatter((sell_signals_pos_dates, sell_signals), label="sell_signals").opts(
+                    marker='circle', size=20, line_color='red',
+                    fill_color=None, alpha=0.5))
+
+            if len(exe_sell_signals_pos) != 0:
+                # 実行された売りシグナルのマーカー
+                exe_sell_signals_pos_dates = [dates[i] for i in exe_sell_signals_pos]
+                graphs.append(hv.Scatter((exe_sell_signals_pos_dates, exe_sell_signals), label="exe_sell_signals").opts(
+                    marker='circle', size=20, line_color='gray', color='red', alpha=0.5))
+
+            # グラフを重ね合わせ
+            overlay = graphs[0]
+            for g in graphs[1:]:
+                overlay *= g
+
+            my_datetime_fmt = DatetimeTickFormatter(seconds="%H:%M:%S",
+                                    minutes="%H:%M:%S",
+                                    hours="%H:%M:%S",
+                                    days="%Y/%m/%d",
+                                    months="%Y/%m",
+                                    years="%Y")
             # グラフの設定
-            overlay.opts(
-                opts.Curve(yaxis='left'),  # 左側のY軸
-                opts.Curve(yaxis='right', hooks=[modify_doc]),  # 右側のY軸
-                opts.Scatter(size=10, line_width=2),  # マーカーの設定
+            overlay = overlay.opts(
+                # opts.Curve(yaxis='left', xlim=(dates[0], dates[-1]),
+                #     ylim=(min(price_data), max(price_data)), hooks=[modify_doc], xformatter=my_datetime_fmt),  # 左側のY軸
+                opts.Curve(yaxis='right', hooks=[modify_doc], xformatter=my_datetime_fmt),  # 右側のY軸
+                # opts.Curve(yaxis='left', xlim=(dates[0], dates[-1]),
+                #     ylim=(min(price_data), max(price_data)), hooks=[modify_doc], xformatter=my_datetime_fmt),  # 左側のY軸
+                # opts.Curve(yaxis='left', xlim=(dates[0], dates[-1]),
+                #     ylim=(min(price_data), max(price_data)), xformatter=my_datetime_fmt),  # 左側のY軸
+                # opts.Curve(yaxis='left', xlim=(dates[0], dates[-1]),
+                #     ylim=(min(price_data), max(price_data)), xformatter=my_datetime_fmt),  # 左側のY軸
                 opts.Overlay(
-                    title="Signals",
-                    legend_position='right',
+                    title="Backtest Result",
+                    legend_position='top_left',
                     fontsize={'title': 12, 'labels': 10},
-                    width=1600,  # 幅を1200ピクセルに
-                    height=600   # 高さを600ピクセルに
+                    width=width,
+                    height=height
                 )
             )
 
@@ -364,6 +404,3 @@ class BacktestStrategy(Strategy):
 
             graph_obj = overlay
         return graph_obj
-
-
-

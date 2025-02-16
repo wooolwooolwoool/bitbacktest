@@ -37,7 +37,8 @@ class Market(ABC):
             "trade_count": 0,
             'cash': start_cash,
             'position': start_coin,
-            'total_value': start_cash
+            'total_value': start_cash,
+            'profit_rate': 0
         }
         self.hist = {
             "signals": {
@@ -53,6 +54,7 @@ class Market(ABC):
         }
         self.order = []
         self.index = 0
+        self.start_cash = start_cash
 
     @abstractmethod
     def place_market_order(self, side: Literal['Buy', 'Sell'],
@@ -105,6 +107,7 @@ class Market(ABC):
     def save_history(self, price: float):
         self.portfolio['total_value'] = self.portfolio[
             'cash'] + self.portfolio['position'] * price
+        self.portfolio['profit_rate'] = self.portfolio['total_value'] / self.start_cash
         self.hist["total_value_hist"].append(self.portfolio['total_value'])
         self.hist["total_pos_hist"].append(self.portfolio['position'])
 
@@ -112,13 +115,18 @@ class Market(ABC):
 class BacktestMarket(Market):
 
     def __init__(self, data: np.ndarray,
+                dates = None,
                 fee_rate: float = 0.0015,
-                allow_neg: bool = False):
+                allow_neg: bool = True):
         super().__init__()
         self.data = data
         self.index = 0
         self.fee_rate = fee_rate
         self.allow_neg = allow_neg
+        if dates is None:
+            self.dates = np.arange(len(data))
+        else:
+            self.dates = dates
 
     def set_current_index(self, index: int):
         self.index = index
@@ -155,6 +163,8 @@ class BacktestMarket(Market):
 
     def _execute_sell_order(self, quantity: float, price: float) -> bool:
         if self.allow_neg or self.portfolio['position'] >= quantity:
+            if self.portfolio['cash'] < (-1) * (self.portfolio['position']) * self.get_current_price():
+                return False # If total value is negative, sell order is not allowed
             self.portfolio['cash'] += quantity * price
             self.portfolio['position'] -= quantity
             self.portfolio['position'] -= quantity * self.fee_rate
