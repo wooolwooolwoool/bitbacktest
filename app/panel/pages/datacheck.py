@@ -11,20 +11,13 @@ from src.bitbacktest.market import BitflyerMarket
 from src.bitbacktest.data_loader import read_prices_from_sheets
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from util import LogBox, datetime_range_picker
+from util import LogBox, datetime_range_picker, datetime_interval, my_datetime_fmt
 import pandas as pd
 import json
 import numpy as np
 from bokeh.models import DatetimeTickFormatter
 
 logbox = LogBox(height=100)
-
-my_datetime_fmt = DatetimeTickFormatter(seconds="%H:%M:%S",
-                        minutes="%H:%M:%S",
-                        hours="%H:%M:%S",
-                        days="%Y/%m/%d",
-                        months="%Y/%m",
-                        years="%Y")
 
 DATA_PATH = "my_data/BitCoinPrice_interp.xlsx"
 DATA_INTERVAL = 10
@@ -59,7 +52,7 @@ load_button.on_click(load_and_plot)
 page = pn.Column(
     pn.pane.Markdown("## 範囲を指定して価格データを表示"),
     pn.Row(
-        datetime_range_picker, load_button
+        datetime_range_picker, datetime_interval, load_button
     ),
     scatter_panel,
     logbox.widget,

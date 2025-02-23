@@ -33,28 +33,7 @@ class Market(ABC):
         pass
 
     def reset_portfolio(self, start_cash: float, start_coin: float):
-        self.portfolio = {
-            "trade_count": 0,
-            'cash': start_cash,
-            'position': start_coin,
-            'total_value': start_cash,
-            'profit_rate': 0
-        }
-        self.hist = {
-            "signals": {
-                "Buy": [],
-                "Sell": []
-            },
-            "execute_signals": {
-                "Buy": [],
-                "Sell": []
-            },
-            "total_value_hist": [],
-            "total_pos_hist": []
-        }
-        self.order = []
-        self.index = 0
-        self.start_cash = start_cash
+        pass
 
     @abstractmethod
     def place_market_order(self, side: Literal['Buy', 'Sell'],
@@ -104,29 +83,103 @@ class Market(ABC):
         """
         return True
 
-    def save_history(self, price: float):
-        self.portfolio['total_value'] = self.portfolio[
-            'cash'] + self.portfolio['position'] * price
-        self.portfolio['profit_rate'] = self.portfolio['total_value'] / self.start_cash
-        self.hist["total_value_hist"].append(self.portfolio['total_value'])
-        self.hist["total_pos_hist"].append(self.portfolio['position'])
-
 
 class BacktestMarket(Market):
 
     def __init__(self, data: np.ndarray,
                 dates = None,
                 fee_rate: float = 0.0015,
-                allow_neg: bool = True):
+                is_fx = False):
         super().__init__()
         self.data = data
         self.index = 0
         self.fee_rate = fee_rate
-        self.allow_neg = allow_neg
+        self.is_fx = is_fx
         if dates is None:
             self.dates = np.arange(len(data))
         else:
             self.dates = dates
+
+    def reset_portfolio(self, start_cash: float, start_coin: float):
+        self.portfolio = {
+            "trade_count": 0,
+            'cash': start_cash,
+            'position': start_coin,
+            'positions_fx': [],
+            'total_value': start_cash,
+            'profit_rate': 0
+        }
+        self.hist = {
+            "signals": {
+                "Buy": [],
+                "Sell": []
+            },
+            "execute_signals": {
+                "Buy": [],
+                "Sell": []
+            },
+            "total_value_hist": [],
+            "total_pos_hist": []
+        }
+        self.order = []
+        self.index = 0
+        self.start_cash = start_cash
+
+    def save_history(self, price: float):
+        if self.is_fx:
+            self.portfolio['total_value'] = self.portfolio[
+                'cash'] + self._calc_current_value(price, self.portfolio['positions_fx'])
+        else:
+            self.portfolio['total_value'] = self.portfolio[
+                'cash'] + self.portfolio['position'] * price
+        self.portfolio['profit_rate'] = self.portfolio['total_value'] / self.start_cash
+        self.hist["total_value_hist"].append(self.portfolio['total_value'])
+        self.hist["total_pos_hist"].append(self.portfolio['position'])
+
+    def _checkout_position(self, order, current_positions):
+        tmp_profit = 0
+        if order["side"] == "BUY":
+            for current_position in current_positions:
+                if current_position["side"] == "SELL":
+                    if current_position["size"] > order["size"]:
+                        current_position["size"] -= order["size"]
+                        tmp_profit += ((current_position["price"] - order["price"]) * order["size"])
+                        order["size"] = 0
+                    else:
+                        order["size"] -= current_position["size"]
+                        tmp_profit += (current_position["price"] - order["price"]) * current_position["size"]
+                        current_positions.remove(current_position)
+                else:
+                    pass
+                if order["size"] == 0:
+                    break
+        else:
+            for current_position in current_positions:
+                if current_position["side"] == "BUY":
+                    if current_position["size"] > order["size"]:
+                        current_position["size"] -= order["size"]
+                        tmp_profit += ((order["price"] - current_position["price"]) * order["size"])
+                        order["size"] = 0
+                    else:
+                        order["size"] -= current_position["size"]
+                        tmp_profit += ((order["price"] - current_position["price"]) * current_position["size"])
+                        current_positions.remove(current_position)
+                else:
+                    pass
+                if order["size"] == 0:
+                    break
+        if order["size"] > 0:
+            current_positions.append(order)
+        return tmp_profit
+
+    def _calc_current_value(self, current_price, current_positions):
+        current_value = 0
+        for current_position in current_positions:
+            if current_position["side"] == "BUY":
+                current_value += (current_price - current_position["price"]) * current_position["size"]
+            else:
+                current_value += (current_position["price"] - current_price) * current_position["size"]
+        return current_value
 
     def set_current_index(self, index: int):
         self.index = index
@@ -151,7 +204,38 @@ class BacktestMarket(Market):
                 return True
         return False
 
-    def _execute_buy_order(self, quantity: float, price: float) -> bool:
+    def _calculate_margin(self, position: float, price: float, lot_size: float = 1.0, leverage: float = 1.0) -> float:
+        """
+        必要な証拠金を計算する関数。
+        """
+        position_size = abs(position) * lot_size  # ポジションの通貨量
+        margin_required = (position_size * price) / leverage  # 必要証拠金
+        return margin_required
+
+    def _execute_order_fx(self, quantity: float, price: float, side) -> bool:
+        # order = {"side": "BUY", "size": 0, "price": 0}
+        current_position = 0
+        for pos in self.portfolio['positions_fx']:
+            if pos["side"] == "BUY":
+                current_position += pos["size"]
+            else:
+                current_position -= pos["size"]
+        tmp_position = current_position + quantity
+        if self.portfolio['cash'] >= self._calculate_margin(tmp_position, price):
+            order = {"size": quantity, "price": price, "side": side}
+            self.portfolio['cash'] += self._checkout_position(order, self.portfolio['positions_fx'])
+            self.portfolio["trade_count"] += 1
+            return True
+        else:
+            return False
+
+    def _execute_buy_order_fx(self, quantity: float, price: float) -> bool:
+        return self._execute_order_fx(quantity, price, "BUY")
+
+    def _execute_sell_order_fx(self, quantity: float, price: float) -> bool:
+        return self._execute_order_fx(quantity, price, "SELL")
+
+    def _execute_buy_order_normal(self, quantity: float, price: float) -> bool:
         if self.portfolio['cash'] >= quantity * price:
             self.portfolio['cash'] -= quantity * price
             self.portfolio['position'] += quantity
@@ -161,10 +245,8 @@ class BacktestMarket(Market):
         else:
             return False  # Insufficient funds
 
-    def _execute_sell_order(self, quantity: float, price: float) -> bool:
-        if self.allow_neg or self.portfolio['position'] >= quantity:
-            if self.portfolio['cash'] < (-1) * (self.portfolio['position']) * self.get_current_price():
-                return False # If total value is negative, sell order is not allowed
+    def _execute_sell_order_normal(self, quantity: float, price: float) -> bool:
+        if self.portfolio['position'] >= quantity:
             self.portfolio['cash'] += quantity * price
             self.portfolio['position'] -= quantity
             self.portfolio['position'] -= quantity * self.fee_rate
@@ -172,6 +254,18 @@ class BacktestMarket(Market):
             return True  # Sell order executed successfully
         else:
             return False  # Insufficient funds
+
+    def _execute_buy_order(self, quantity: float, price: float) -> bool:
+        if self.is_fx:
+            return self._execute_buy_order_fx(quantity, price)
+        else:
+            return self._execute_buy_order_normal(quantity, price)
+
+    def _execute_sell_order(self, quantity: float, price: float) -> bool:
+        if self.is_fx:
+            return self._execute_sell_order_fx(quantity, price)
+        else:
+            return self._execute_sell_order_normal(quantity, price)
 
     def place_market_order(self, side: Literal['Buy', 'Sell'],
                            quantity: float) -> bool:
@@ -380,40 +474,8 @@ class BitflyerMarket(Market):
         current_positions = []
         date_format = "%Y-%m-%dT%H:%M:%S.%f"
         dates = []
-        for exe in executions:
-            tmp_profit = 0
-            if exe["side"] == "BUY":
-                for current_position in current_positions:
-                    if current_position["side"] == "SELL":
-                        if current_position["size"] > exe["size"]:
-                            current_position["size"] -= exe["size"]
-                            tmp_profit += ((current_position["price"] - exe["price"]) * exe["size"])
-                            exe["size"] = 0
-                        else:
-                            exe["size"] -= current_position["size"]
-                            tmp_profit += (current_position["price"] - exe["price"]) * current_position["size"]
-                            current_positions.remove(current_position)
-                    else:
-                        pass
-                    if exe["size"] == 0:
-                        break
-            else:
-                for current_position in current_positions:
-                    if current_position["side"] == "BUY":
-                        if current_position["size"] > exe["size"]:
-                            current_position["size"] -= exe["size"]
-                            tmp_profit += ((exe["price"] - current_position["price"]) * exe["size"])
-                            exe["size"] = 0
-                        else:
-                            exe["size"] -= current_position["size"]
-                            tmp_profit += ((exe["price"] - current_position["price"]) * current_position["size"])
-                            current_positions.remove(current_position)
-                    else:
-                        pass
-                    if exe["size"] == 0:
-                        break
-            if exe["size"] > 0:
-                current_positions.append(exe)
-            profits.append(tmp_profit)
+        for order in orders:
+            profit = self._checkout_position(order, current_positions)
+            profits.append(profit)
             dates.append(datetime.strptime(exe["exec_date"], date_format))
         return dates, profits

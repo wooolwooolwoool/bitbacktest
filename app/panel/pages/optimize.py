@@ -20,7 +20,7 @@ from src.bitbacktest.signal_generator import SignalGenerator
 from src.bitbacktest.trade_executor import TradeExecutor
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from util import LogBox, DataFrameLogManager, datetime_range_picker, ParameterManager, save_result_summary
+from util import LogBox, DataFrameLogManager, datetime_range_picker, ParameterManager, save_result_summary, datetime_interval
 
 logbox = LogBox()
 
@@ -38,6 +38,9 @@ scatter.opts(title="Backtest Result", xlabel="Time", ylabel="Value", width=1000,
 hline = hv.HLine(0).opts(color="red", line_width=1, line_dash="dashed")
 overlay = scatter * hline
 scatter_panel = pn.pane.HoloViews(overlay)
+
+# Create and configure the button
+button = pn.widgets.Button(name="Start Optimize", button_type="primary")
 
 # Flag to manage update state
 is_running = [False]
@@ -63,16 +66,18 @@ price_data = None
 def exec_optimize():
     try:
         """Update data and run backtest."""
+        button.name = "Running"
+        log_manager.log_pane.clear()
         global price_data, scatter_panel, scatter
         logbox.update_log("Start optimize")
         logbox.update_log("Data loading...")
         datetime_range = datetime_range_picker.value
         dates, price_data = read_prices_from_sheets(DATA_PATH, datetime_range,
-                                         DATA_INTERVAL, use_cache=True, with_date=True)
+                                         datetime_interval.value, use_cache=True, with_date=True)
         os.environ["ORDER_NUM_MAX"] = "10"
         target_params = param_manager.get_params()
 
-        market = BacktestMarket(price_data, fee_rate=0)
+        market = BacktestMarket(price_data, fee_rate=0, is_fx=True)
         signal_gene = custom_classes['SignalGenerator'][signal_generator_select.value]()
         trade_exec = custom_classes['TradeExecutor'][trade_executor_select.value]()
 
@@ -95,29 +100,30 @@ def exec_optimize():
             df_log_queue=df_log_queue
         )
         logbox.update_log(f"Best value: {best_value}")
-        save_path = save_result_summary(DATA_PATH, datetime_range, DATA_INTERVAL, best_param,
-                            market.portfolio, signal_generator_select.value, trade_executor_select.value)
+        save_path = save_result_summary(DATA_PATH, datetime_range, datetime_interval.value, best_param,
+                            backtester.best["portfolio"], signal_generator_select.value, trade_executor_select.value)
         logbox.update_log(f"Result saved to {save_path}")
 
     except Exception as e:
         logbox.update_log(f"Error: {e}")
         logbox.update_log(traceback.format_exc())
+    button.name = "Start Optimize"
     is_running[0] = False
+
+backtest_thread = None
 
 def start_optimize(event):
     """Start or stop the update process."""
+    global backtest_thread
     if not is_running[0]:
-        is_running[0] = True
+        if backtest_thread is not None:
+            backtest_thread.join()
         backtest_thread = threading.Thread(target=exec_optimize, daemon=True)
         backtest_thread.start()
-        # button.name = "Cancel"
+        is_running[0] = True
     else:
-        # log_manager.stop_thread()
-        # is_running[0] = False
-        button.name = "Start"
+        logbox.update_log(f"Cannot start. Running now.")
 
-# Create and configure the button
-button = pn.widgets.Button(name="Start Optimize", button_type="primary")
 button.on_click(start_optimize)
 
 # Function to dynamically import classes from custom_src

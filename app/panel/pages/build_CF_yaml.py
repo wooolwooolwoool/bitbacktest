@@ -5,6 +5,7 @@ import panel as pn
 import holoviews as hv
 hv.extension("bokeh")
 import traceback
+import datetime
 
 # Add local module path
 sys.path.append(".")
@@ -118,11 +119,8 @@ def update_params(event):
     param_manager = ParameterManager(strategy.default_param, only_constant=True)
     strategy.reset_all({}, 0)
     logbox.update_log(f"Updated parameters: {signal_generator_select.value}, {trade_executor_select.value}")
-    plot_param_select_obj = PlotParamSelector(list(strategy.get_all_dynamic().keys()))
     pane = pn.Column(
         param_manager.param_pane,
-        pn.pane.Markdown("### Select to hold dynamic value and axis"),
-        plot_param_select_obj.widget
     )
     return pane
 
@@ -139,64 +137,32 @@ def load_yaml_file(event):
 
 file_input_yaml.param.watch(load_yaml_file, 'value')
 
-def exec_backtest(event):
+def exec_build(event):
     try:
-        global price_data, scatter_panel, scatter, plot_param_select_obj
-        logbox.update_log("Start optimize")
-        logbox.update_log("Data loading...")
-        datetime_range = datetime_range_picker.value
-        dates, price_data = read_prices_from_sheets(DATA_PATH, datetime_range,
-                                         datetime_interval.value, use_cache=True, with_date=True)
-        os.environ["ORDER_NUM_MAX"] = "10"
-        target_params = param_manager.get_params()
-
-        market = BacktestMarket(price_data, dates=dates, fee_rate=0, is_fx=True)
-        signal_gene = custom_classes['SignalGenerator'][signal_generator_select.value]()
-        trade_exec = custom_classes['TradeExecutor'][trade_executor_select.value]()
-
-        logbox.update_log("Strategy parameters:")
-        logbox.update_log(f"{target_params}")
-
-        strategy = BacktestStrategy(market, signal_gene, trade_exec)
-        strategy.reset_all(target_params, start_cash_w.value, start_coin_w.value)
-        selected_params, axis = plot_param_select_obj.value
-        portfolio_result = strategy.backtest(hold_params=selected_params, axis=axis)
-        logbox.update_log(portfolio_result)
-        logbox.update_log(f"Profit rate: {portfolio_result['total_value'] / start_cash_w.value}")
-
-        # Plot graph
-        graph = strategy.create_backtest_graph(backend="holoviews", save_graph=True)
-        scatter_panel.object = graph
-        logbox.update_log("Backtest completed")
+        now = datetime.datetime.now()
+        yaml_path = f"my_data/CloudFormation_{now.strftime('%Y%m%d_%H%M%S')}_{signal_generator_select.value}_{trade_executor_select.value}.yaml"
+        os.system(f"python3 app/aws_build/build_all.py -s {signal_generator_select.value} -t {trade_executor_select.value} -o {yaml_path}")
+        logbox.update_log(f"Complete build. save to {yaml_path}")
     except Exception as e:
         logbox.update_log(f"Error: {e}")
         logbox.update_log(traceback.format_exc())
 
 # Create and configure the button
-button = pn.widgets.Button(name="Start Backtest", button_type="primary")
-button.on_click(exec_backtest)
+button = pn.widgets.Button(name="Start build", button_type="primary")
+button.on_click(exec_build)
 
-page = pn.Row(
-    pn.layout.WidgetBox(
-        pn.pane.Markdown("## Load result summary"),
-        file_input_yaml,
-        pn.pane.Markdown("## Select custom classes"),
-        pn.Row(
-            signal_generator_select,
-            trade_executor_select,
-        ),
-        reload_button,
-        pn.pane.Markdown("## Optimeze settings"),
-        general_grid,
-        pn.pane.Markdown("## Date range"),
-        pn.Row(
-            datetime_range_picker, datetime_interval
-        ),
-        pn.pane.Markdown("## Parameter settings"),
-        update_params,
-        button,
-        pn.pane.Markdown("## Log"),
-        logbox.widget,
+page = pn.Column(
+    pn.pane.Markdown("## Load result summary"),
+    file_input_yaml,
+    pn.pane.Markdown("## Select custom classes"),
+    pn.Row(
+        signal_generator_select,
+        trade_executor_select,
     ),
-    scatter_panel,
+    reload_button,
+    pn.pane.Markdown("## Parameter settings"),
+    update_params,
+    button,
+    pn.pane.Markdown("## Log"),
+    logbox.widget,
 )

@@ -2,5 +2,5 @@
 
 ```sh
 $ python3 app/aws_build/build_all.py \
-    -d your_src1/ your_src2/ -s YourStrategy -o CloudFormation.yaml
+    -s MACDSG -t NormalExecutor -o CloudFormation.yaml
 ```

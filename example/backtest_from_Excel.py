@@ -6,8 +6,10 @@ from src.bitbacktest.data_loader import read_prices_from_sheets
 
 
 # Read data for test
+datetime_range = (datetime.datetime(2024, 11, 20, 12, 00),
+                  datetime.datetime(2025,  2, 28, 12, 00))
 price_data = read_prices_from_sheets("my_data/BitCoinPrice_interp.xlsx",
-                        ["202405", "202406", "202407", "202408"], 5, use_cache=True)
+                        datetime_range, 10, use_cache=True)
 
 # Set parameters
 market = BacktestMarket(price_data)

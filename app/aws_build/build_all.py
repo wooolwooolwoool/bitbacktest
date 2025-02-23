@@ -24,11 +24,16 @@ if __name__ == "__main__":
     parser.add_argument("-d",
                         "--directories",
                         nargs="+",
+                        default=["src/bitbacktest", "my_data/custom_src"],
                         help="The directories to search for Python files.")
     parser.add_argument("-s",
-                        "--strategy-class",
+                        "--sg-class",
                         required=True,
-                        help="Strategy Class Name.")
+                        help="Signal Generator Class Name.")
+    parser.add_argument("-t",
+                        "--te-class",
+                        required=True,
+                        help="Trade Executor Class Name.")
     parser.add_argument("-m",
                         "--market-class",
                         default="BitflyerMarket",
@@ -46,8 +51,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     comb_args = [
-        "./app/aws_build/build_lambda_src.py", "-s", args.strategy_class, "-m",
-        args.market_class, "-o", tmp_file
+        "./app/aws_build/build_lambda_src.py",
+        "-s", args.sg_class, "-t", args.te_class, "-o", tmp_file
     ]
     if args.directories is None:
         args.directories = []

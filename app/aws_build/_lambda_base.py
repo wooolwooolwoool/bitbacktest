@@ -12,7 +12,7 @@ import hmac
 from datetime import datetime
 import traceback
 
-{Strategy src}
+{Class src}
 
 def convert_numpy_array_to_dynamodb(np_array, chunk_size_kb=400):
     # Numpy配列をバイト列に変換
@@ -103,7 +103,7 @@ def save_to_dynamodb(table: object, item: dict, partition_key: str):
     item_converted = {k: convert_for_dynamodb(v) for k, v in item.items()}
     item_converted["id"] = partition_key
     item = json.loads(json.dumps(item_converted))
-    
+
     table.put_item(Item=item)
 
 def read_from_dynamodb(table: object, key_value, partition_key: str) -> dict:
@@ -132,10 +132,13 @@ def lambda_handler(event, context):
         API_SECRET = os.environ["API_SECRET"]
         dynamodb = boto3.resource('dynamodb')
         table = dynamodb.Table(os.environ["TABLE_NAME"])
-        
+
         market = {Market class}()
-        market.set_apikey(API_KEY, API_SECRET)        
-        strategy = {Strategy class}(market)
+        market.set_apikey(API_KEY, API_SECRET)
+        signal_gene = {SG class}()
+        trade_exec = {TE class}()
+        strategy = Strategy(market, signal_gene, trade_exec)
+
         # 環境変数読み込み
         env_variables = {}
         for key, value in os.environ.items():
@@ -150,6 +153,7 @@ def lambda_handler(event, context):
             val = read_from_dynamodb(table, os.environ["PARAMS_KEY"], "id")
             if val is not None:
                 strategy.dynamic = val
+                strategy.set_all_dynamic()
         except:
             pass
         current_price = market.get_current_price()
@@ -157,7 +161,7 @@ def lambda_handler(event, context):
 
         if strategy.trade_limiter():
             strategy.execute_trade(current_price, signals)
-        save_to_dynamodb(table, strategy.dynamic, os.environ["PARAMS_KEY"])
+        save_to_dynamodb(table, strategy.get_all_dynamic(), os.environ["PARAMS_KEY"])
 
     except:
         traceback.print_exc()

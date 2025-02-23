@@ -6,6 +6,7 @@ import pandas as pd
 import threading
 from multiprocessing import Queue
 from skopt.space import Integer, Real, Categorical
+from bokeh.models import DatetimeTickFormatter
 
 class LogBox():
     def __init__(self, width=600, height=100):
@@ -94,7 +95,8 @@ class ParameterManager:
 
     def _create_widgets(self):
         """Create widgets for parameter settings."""
-        grid = pn.GridSpec(width=600, height=50 * (len(self.params.items()) + 1))
+        # grid = pn.GridSpec(width=600, height=50 * (len(self.params.items()) + 1))
+        grid = pn.GridSpec(width=600)
         grid[0, 0] = pn.pane.Str("Key")
         grid[0, 1] = pn.pane.Str("Type")
         grid[0, 2] = pn.pane.Str("Lower")
@@ -147,6 +149,7 @@ datetime_range_picker = pn.widgets.DatetimeRangePicker(
     name='Datetime Range Picker',
     value=(datetime.datetime(2024, 11, 20, 12, 00), datetime.datetime(2025, 2, 28, 12, 00)),
 )
+datetime_interval = pn.widgets.IntInput(name="Interval(minute)", value=10, disabled=False)
 
 def convert_to_standard_types(data):
     """Convert NumPy data types in a dictionary to standard Python types."""
@@ -184,3 +187,11 @@ def load_result_summary(yaml_data):
     signal_generator_name = summary["SignalGenerator"]
     trade_executor_name = summary["TradeExecutor"]
     return signal_generator_name, trade_executor_name, summary["params"]
+
+
+my_datetime_fmt = DatetimeTickFormatter(seconds="%H:%M:%S",
+                        minutes="%H:%M:%S",
+                        hours="%H:%M:%S",
+                        days="%Y/%m/%d",
+                        months="%Y/%m",
+                        years="%Y")

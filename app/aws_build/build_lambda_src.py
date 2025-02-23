@@ -3,6 +3,7 @@ import re
 import argparse
 
 base_file = "./app/aws_build/_lambda_base.py"
+tmp_file = "_tmp_s.py"
 
 
 def find_python_files(directories):
@@ -141,22 +142,24 @@ def combine_files(directory, output_file, target_names):
             out_file.write(definition)
 
 
-def create_lamda_file(base_file, tmp_file, out_file, strategy_class,
+def create_lamda_file(base_file, tmp_file, out_file, sg_class, te_class,
                       market_class):
     out = []
     with open(base_file, "r") as f:
         base = f.readlines()
 
     for line in base:
-        if "{Strategy src}" in line:
+        if "{Class src}" in line:
             with open(tmp_file, "r") as f:
                 for line in f.readlines():
                     if "import" in line and " ." in line:
                         # Skip reletive imports
                         continue
                     out.append(line)
-        elif "{Strategy class}" in line:
-            out.append(line.replace("{Strategy class}", strategy_class))
+        elif "{SG class}" in line:
+            out.append(line.replace("{SG class}", sg_class))
+        elif "{TE class}" in line:
+            out.append(line.replace("{TE class}", te_class))
         elif "{Market class}" in line:
             out.append(line.replace("{Market class}", market_class))
         elif "import" in line and " ." in line:
@@ -168,9 +171,22 @@ def create_lamda_file(base_file, tmp_file, out_file, strategy_class,
     with open(out_file, "w") as f:
         f.write("".join(out))
 
+def main_fn(market_class, sg_class, te_class, directories, output_file, additional_target_names=None):
+
+    classes = []
+    classes.append(market_class)
+    classes.append(sg_class)
+    classes.append(te_class)
+    classes.append("Strategy")
+    if additional_target_names is not None:
+        classes.extend(additional_target_names)
+
+    combine_files(directories, tmp_file, classes)
+    create_lamda_file(base_file, tmp_file, output_file,
+        sg_class, te_class, market_class)
+    os.remove(tmp_file)
 
 if __name__ == "__main__":
-    tmp_file = "_tmp_s.py"
     parser = argparse.ArgumentParser(
         description=
         "Combine specific functions and classes from Python files into one file.\n ex) python build.py -d /path/to/dir1 /path/to/dir2 -o CloudFormation.yaml -s MACDStartegy MyFunction MyClass"
@@ -184,9 +200,13 @@ if __name__ == "__main__":
                         default="_lamda.py",
                         help="Path to the output file.")
     parser.add_argument("-s",
-                        "--strategy-class",
+                        "--sg-class",
                         required=True,
-                        help="Strategy Class Name.")
+                        help="Signal Generator Class Name.")
+    parser.add_argument("-t",
+                        "--te-class",
+                        required=True,
+                        help="Trade Executor Class Name.")
     parser.add_argument("-m",
                         "--market-class",
                         default="BitflyerMarket",
@@ -200,11 +220,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     classes = []
     classes.append(args.market_class)
-    classes.append(args.strategy_class)
+    classes.append(args.sg_class)
+    classes.append(args.te_class)
+    classes.append("Strategy")
     if args.additional_target_names is not None:
         classes.extend(args.additional_target_names)
 
     combine_files(args.directories, tmp_file, classes)
     create_lamda_file(base_file, tmp_file, args.output_file,
-                      args.strategy_class, args.market_class)
-    os.remove(tmp_file)
+        args.sg_class, args.te_class, args.market_class)

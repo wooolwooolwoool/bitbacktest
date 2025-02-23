@@ -1,11 +1,10 @@
 import numpy as np
 from tqdm import tqdm
-from abc import ABC, abstractmethod
 from typing import Literal
 import os
 
 
-class Strategy(ABC):
+class Strategy():
     """Trading Strategy
 
     Args:
@@ -82,7 +81,7 @@ class Strategy(ABC):
         return ret
 
 class BacktestStrategy(Strategy):
-    def backtest(self, hold_params=[]):
+    def backtest(self, hold_params=[], axis=None):
         """Running a back test
         Backtest flow is
         1. get current price
@@ -96,6 +95,7 @@ class BacktestStrategy(Strategy):
         self.dynamic["count"] = 0
         self.market.set_current_index(0)
         self.hold_params = {}
+        self.axis = axis
         for p in hold_params:
             self.hold_params[p] = []
         if not "TRADE_ENABLE" in os.environ.keys():
@@ -138,7 +138,7 @@ class BacktestStrategy(Strategy):
 
     def create_backtest_graph(self, output_filename="plot_signal",
             backend: Literal['plotly', 'matplotlib', "holoviews"] ="matplotlib",
-            save_graph: bool = True, width=1000, height=600):
+            save_graph: bool = True, width=1200, height=1000):
         graph_obj = None
 
         buy_signals = [
@@ -299,25 +299,58 @@ class BacktestStrategy(Strategy):
             hv.extension('bokeh')
 
             graphs = []
+            axis_plot = {'Price': [], 'Value': [], "Additional": []}
+
+            additional_max = None
+            additional_min = None
+
+            if len(self.hold_params.keys()) != 0:
+                i = 0
+                for k, v in self.hold_params.items():
+                    if self.axis is not None and self.axis[i] == "Additional":
+                        if additional_max is None:
+                            additional_max = max(v)
+                        else:
+                            additional_max = max([max(v), additional_max])
+                        if additional_min is None:
+                            additional_min = min(v)
+                        else:
+                            additional_min = min([min(v), additional_min])
+                    i += 1
+            if additional_max is None:
+                additional_min = 0
+                additional_max = 1
 
             # フックを使って2軸を適用
             def modify_doc(plot, element):
                 p = plot.state
 
-                # 既存のラベルを変更
-                p.yaxis[0].axis_label = "BTC Price (JPY)"
-
                 # 右Y軸を追加（重複しないようにチェック）
                 if len(p.yaxis) < 2:
+                    # 既存のラベルを変更
+                    p.yaxis[0].axis_label = "BTC Price (JPY)"
+                    p.y_range = Range1d(start=min(price_data), end=max(price_data))
                     # 右Y軸を設定（Total Value (JPY)）
-                    p.extra_y_ranges = {"right": Range1d(start=min(value_hist), end=max(value_hist))}
+                    p.extra_y_ranges = {}
+                    p.extra_y_ranges["right"] = Range1d(start=min(value_hist), end=max(value_hist))
+                    p.extra_y_ranges["right_2"] = Range1d(start=additional_min, end=additional_max)
                     right_axis = LinearAxis(y_range_name="right", axis_label="Total Value (JPY)")
                     p.add_layout(right_axis, 'right')
+                    right_axis_2 = LinearAxis(y_range_name="right_2", axis_label="Additional")
+                    p.add_layout(right_axis_2, 'right')
 
                 # Total Valueの折れ線を右Y軸に関連付け
                 for r in p.renderers:
-                    if r.name == "Total Value" and r.y_range_name != "right":
+                    if r.name == "Total Value":
                         r.y_range_name = "right"
+                    elif r.name in axis_plot["Value"]:
+                        r.y_range_name = "right"
+                    elif r.name in axis_plot["Additional"]:
+                        # print(r.name, axis_plot["Additional"])
+                        r.y_range_name = "right_2"
+                    else:
+                        pass
+                        # r.y_range_name = "left"
 
                 # **背景にグリッド線を追加**
                 p.xgrid.grid_line_color = "gray"  # X軸のグリッド線をグレーに
@@ -336,9 +369,13 @@ class BacktestStrategy(Strategy):
                     ylim=(min(value_hist), max(value_hist))))
 
             if len(self.hold_params.keys()) != 0:
+                i = 0
                 for k, v in self.hold_params.items():
+                    if self.axis is not None:
+                        axis_plot[self.axis[i]].append(k)
                     graphs.append(hv.Curve((dates, v),
                             label=k).opts(yaxis='left'))
+                    i += 1
 
             if len(buy_signals_pos) != 0:
                 # 買いシグナルのマーカー

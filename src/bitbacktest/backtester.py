@@ -49,6 +49,7 @@ class BayesianBacktester:
         self.count = 0
         self.graph_buffer = None
         self.log_manager = None
+        self.best = {"value": 0, "portfolio": None}
 
     def _backtest_algorithm(self, params):
         self.count += 1
@@ -61,6 +62,10 @@ class BayesianBacktester:
         total_value = result["total_value"]
         trade_count = result["trade_count"]
         result_str = f"param: {param}, total_value: {total_value}"
+        if total_value > self.best["value"]:
+            self.best["value"] = total_value
+            self.best["portfolio"] = result.copy()
+
         try:
             result_str += f", trade count: {trade_count}"
         except:
@@ -109,6 +114,7 @@ class BayesianBacktester:
         self.keys = []
         self.graph_buffer = graph_buffer
         self.df_log_queue = df_log_queue
+        self.best = {"value": 0, "portfolio": None}
         if self.graph_buffer is not None:
             self.graph_buffer.clear()
         param_ranges_variable = []
