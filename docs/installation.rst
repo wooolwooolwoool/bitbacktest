@@ -28,24 +28,10 @@ From sources
 
 The sources for BitBacktest can be downloaded from the `Github repo`_.
 
-You can either clone the public repository:
-
-.. code-block:: console
-
-    $ git clone git://github.com/wooolwoool@gmail.com/bitbacktest
-
-Or download the `tarball`_:
-
-.. code-block:: console
-
-    $ curl -OJL https://github.com/wooolwoool@gmail.com/bitbacktest/tarball/master
+You can either clone the public repository
 
 Once you have a copy of the source, you can install it with:
 
 .. code-block:: console
 
     $ python setup.py install
-
-
-.. _Github repo: https://github.com/wooolwoool@gmail.com/bitbacktest
-.. _tarball: https://github.com/wooolwoool@gmail.com/bitbacktest/tarball/master

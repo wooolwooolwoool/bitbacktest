@@ -50,7 +50,8 @@ load_button.on_click(load_and_plot)
 
 # Layout
 page = pn.Column(
-    pn.pane.Markdown("## 範囲を指定して価格データを表示"),
+    pn.pane.Markdown("## Show Price History"),
+    pn.layout.Divider(margin=(-20, 0, 0, 0)),
     pn.Row(
         datetime_range_picker, datetime_interval, load_button
     ),

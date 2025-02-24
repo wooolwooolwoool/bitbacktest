@@ -2,6 +2,7 @@ import panel as pn
 import datetime
 import os
 import sys
+import traceback
 
 import holoviews as hv
 hv.extension("bokeh")
@@ -69,7 +70,9 @@ def load_execution_history(event):
         scatter_panel.object = hv.Curve(new_data, 'Datetime', 'Total Profit(JPY)').opts(title="Profit history",
                             width=1600, height=600, color="blue",
                             xformatter=my_datetime_fmt)
-    except:
+    except Exception as e:
+        logbox.update_log(f"Error: {e}")
+        logbox.update_log(traceback.format_exc())
         logbox.update_log("Failed to load execution history from JSON.")
 # Buttons
 fetch_button = pn.widgets.Button(name="Fetch and Save Execution History")
@@ -82,13 +85,16 @@ load_execution_history(None)
 
 # Layout
 page = pn.Column(
+    pn.pane.Markdown("## Execution History"),
+    pn.layout.Divider(margin=(-20, 0, 0, 0)),
     pn.Row(
         fetch_button,
         load_button,
     ),
-    pn.pane.Markdown("## Execution History"),
     log_pane,
     scatter_panel,
-    logbox
+    pn.pane.Markdown("## Log"),
+    pn.layout.Divider(margin=(-20, 0, 0, 0)),
+    logbox.widget,
 )
 

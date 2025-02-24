@@ -28,6 +28,8 @@ price_data = None
 
 logbox = LogBox()
 
+status_widgit = pn.pane.Markdown("## Ready")
+
 custom_classes = {'SignalGenerator': {}, 'TradeExecutor': {}}
 
 plot_param_select = pn.layout.WidgetBox()
@@ -139,30 +141,38 @@ file_input_yaml.param.watch(load_yaml_file, 'value')
 
 def exec_build(event):
     try:
+        global status_widgit
+        status_widgit.value = "## Making..."
         now = datetime.datetime.now()
         yaml_path = f"my_data/CloudFormation_{now.strftime('%Y%m%d_%H%M%S')}_{signal_generator_select.value}_{trade_executor_select.value}.yaml"
         os.system(f"python3 app/aws_build/build_all.py -s {signal_generator_select.value} -t {trade_executor_select.value} -o {yaml_path}")
-        logbox.update_log(f"Complete build. save to {yaml_path}")
+        logbox.update_log(f"Complete make. save to {yaml_path}")
+        status_widgit.value = f"Complete make. save to {yaml_path}"
     except Exception as e:
         logbox.update_log(f"Error: {e}")
         logbox.update_log(traceback.format_exc())
 
 # Create and configure the button
-button = pn.widgets.Button(name="Start build", button_type="primary")
+button = pn.widgets.Button(name="Start Make yaml", button_type="primary")
 button.on_click(exec_build)
 
 page = pn.Column(
     pn.pane.Markdown("## Load result summary"),
+    pn.layout.Divider(margin=(-20, 0, 0, 0)),
     file_input_yaml,
     pn.pane.Markdown("## Select custom classes"),
+    pn.layout.Divider(margin=(-20, 0, 0, 0)),
     pn.Row(
         signal_generator_select,
         trade_executor_select,
     ),
     reload_button,
     pn.pane.Markdown("## Parameter settings"),
+    pn.layout.Divider(margin=(-20, 0, 0, 0)),
     update_params,
     button,
+    status_widgit,
     pn.pane.Markdown("## Log"),
+    pn.layout.Divider(margin=(-20, 0, 0, 0)),
     logbox.widget,
 )

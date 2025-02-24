@@ -70,6 +70,42 @@ class Market(ABC):
         else:
             return False
 
+    def _checkout_position(self, order, current_positions):
+        tmp_profit = 0
+        if order["side"] == "BUY":
+            for current_position in current_positions:
+                if current_position["side"] == "SELL":
+                    if current_position["size"] > order["size"]:
+                        current_position["size"] -= order["size"]
+                        tmp_profit += ((current_position["price"] - order["price"]) * order["size"])
+                        order["size"] = 0
+                    else:
+                        order["size"] -= current_position["size"]
+                        tmp_profit += (current_position["price"] - order["price"]) * current_position["size"]
+                        current_positions.remove(current_position)
+                else:
+                    pass
+                if order["size"] == 0:
+                    break
+        else:
+            for current_position in current_positions:
+                if current_position["side"] == "BUY":
+                    if current_position["size"] > order["size"]:
+                        current_position["size"] -= order["size"]
+                        tmp_profit += ((order["price"] - current_position["price"]) * order["size"])
+                        order["size"] = 0
+                    else:
+                        order["size"] -= current_position["size"]
+                        tmp_profit += ((order["price"] - current_position["price"]) * current_position["size"])
+                        current_positions.remove(current_position)
+                else:
+                    pass
+                if order["size"] == 0:
+                    break
+        if order["size"] > 0:
+            current_positions.append(order)
+        return tmp_profit
+
     @abstractmethod
     def get_open_orders(self):
         return self.order
@@ -135,42 +171,6 @@ class BacktestMarket(Market):
         self.portfolio['profit_rate'] = self.portfolio['total_value'] / self.start_cash
         self.hist["total_value_hist"].append(self.portfolio['total_value'])
         self.hist["total_pos_hist"].append(self.portfolio['position'])
-
-    def _checkout_position(self, order, current_positions):
-        tmp_profit = 0
-        if order["side"] == "BUY":
-            for current_position in current_positions:
-                if current_position["side"] == "SELL":
-                    if current_position["size"] > order["size"]:
-                        current_position["size"] -= order["size"]
-                        tmp_profit += ((current_position["price"] - order["price"]) * order["size"])
-                        order["size"] = 0
-                    else:
-                        order["size"] -= current_position["size"]
-                        tmp_profit += (current_position["price"] - order["price"]) * current_position["size"]
-                        current_positions.remove(current_position)
-                else:
-                    pass
-                if order["size"] == 0:
-                    break
-        else:
-            for current_position in current_positions:
-                if current_position["side"] == "BUY":
-                    if current_position["size"] > order["size"]:
-                        current_position["size"] -= order["size"]
-                        tmp_profit += ((order["price"] - current_position["price"]) * order["size"])
-                        order["size"] = 0
-                    else:
-                        order["size"] -= current_position["size"]
-                        tmp_profit += ((order["price"] - current_position["price"]) * current_position["size"])
-                        current_positions.remove(current_position)
-                else:
-                    pass
-                if order["size"] == 0:
-                    break
-        if order["size"] > 0:
-            current_positions.append(order)
-        return tmp_profit
 
     def _calc_current_value(self, current_price, current_positions):
         current_value = 0
@@ -468,7 +468,7 @@ class BitflyerMarket(Market):
         return executions
 
     def calc_profits(self, executions):
-        executions = sorted(executions, key=lambda x: x['exec_date'])
+        orders = sorted(executions, key=lambda x: x['exec_date'])
         profits = []
         # position  = {"side": "BUY", "size": 0, "price": 0, "exec_date": "2025-01-24T17:22:42.133"}
         current_positions = []
@@ -477,5 +477,5 @@ class BitflyerMarket(Market):
         for order in orders:
             profit = self._checkout_position(order, current_positions)
             profits.append(profit)
-            dates.append(datetime.strptime(exe["exec_date"], date_format))
+            dates.append(datetime.strptime(order["exec_date"], date_format))
         return dates, profits

@@ -81,7 +81,7 @@ def reload_sg_te(event):
     trade_executor_select.options = list(custom_classes['TradeExecutor'].keys())
     logbox.update_log("Reloaded SignalGenerator and TradeExecutor classes")
 
-reload_button = pn.widgets.Button(name="Reload SG and TE", button_type="primary")
+reload_button = pn.widgets.Button(name="Reload SG and TE", button_type="default")
 reload_button.on_click(reload_sg_te)
 
 class PlotParamSelector:
@@ -179,23 +179,29 @@ button.on_click(exec_backtest)
 page = pn.Row(
     pn.layout.WidgetBox(
         pn.pane.Markdown("## Load result summary"),
+        pn.layout.Divider(margin=(-20, 0, 0, 0)),
         file_input_yaml,
         pn.pane.Markdown("## Select custom classes"),
+        pn.layout.Divider(margin=(-20, 0, 0, 0)),
+        reload_button,
         pn.Row(
             signal_generator_select,
             trade_executor_select,
         ),
-        reload_button,
         pn.pane.Markdown("## Optimeze settings"),
+        pn.layout.Divider(margin=(-20, 0, 0, 0)),
         general_grid,
         pn.pane.Markdown("## Date range"),
+        pn.layout.Divider(margin=(-20, 0, 0, 0)),
         pn.Row(
             datetime_range_picker, datetime_interval
         ),
         pn.pane.Markdown("## Parameter settings"),
+        pn.layout.Divider(margin=(-20, 0, 0, 0)),
         update_params,
         button,
         pn.pane.Markdown("## Log"),
+        pn.layout.Divider(margin=(-20, 0, 0, 0)),
         logbox.widget,
     ),
     scatter_panel,

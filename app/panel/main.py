@@ -4,7 +4,7 @@ import datetime
 import panel as pn
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from pages import optimize, bitflyer, datacheck, backtest, other, build_CF_yaml
+from pages import optimize, bitflyer, datacheck, backtest, other, make_CF_yaml
 
 js_files = {'jquery': 'https://code.jquery.com/jquery-1.11.1.min.js',
             'goldenlayout': 'https://golden-layout.com/files/latest/js/goldenlayout.min.js'}
@@ -20,7 +20,7 @@ layout = pn.Tabs(
     ('Optimize', optimize.page),
     ('Backtest', backtest.page),
     ('Bitflyer', bitflyer.page),
-    ('build_CF_yaml', build_CF_yaml.page),
+    ('Make_CF_yaml', make_CF_yaml.page),
     ('Other', other.page),
 )
 

@@ -34,83 +34,68 @@ Install
 
 Please git clone.
 
-How to use
+How to use (GUI)
 --------
-See example folder
+Start panel app
 
-#. Create Strategy Class. See src/bitbacktest/strategy.py
+.. code-block:: bash
+        $ ./start_panel.sh
 
-#. Tuning parameter. See example/bayse_backtest_BB.py
+Access to http://localhost:5006/main
+
+How to use (CLI)
+--------
+See example folder. example/bayse_backtest_BB.py
+
+#. Create Class. See src/bitbacktest/signal_generator.py and trade_executor.py
+
+#. Prepare data and params.
 
         .. code-block:: python
 
                 # Read data for test
-                price_data = read_prices_from_sheets("my_data/BitCoinPrice_interp.xlsx",
-                                        ["202404", "202405", "202406", "202407"], 60, use_cache=True)
+                price_data = read_prices_from_sheets(data_path,
+                                        datetime_range, data_interval, use_cache=True)
 
-                # Set parameters
+                # Set parameters. Define the parameters you want to optimize using the Integer and Real class.
                 target_params = {
-                'window_size': Integer(10, 500),  # 移動平均の期間
-                'num_std_dev': Real(1, 4),   # 標準偏差の倍率
-                'buy_count_limit': 5,
-                "one_order_quantity": 0.001
+                        'window_size': Integer(10, 500),
+                        'num_std_dev': Real(1, 4),
+                        'buy_count_limit': 5,
+                        "one_order_quantity": 0.001
                 }
                 start_cash = 1e6
 
                 # Prepare Strategy and Backtester
-                market = BacktestMarket(price_data)
-                strategy = BollingerBandsStrategy(market)
+                market = BacktestMarket(price_data, fee_rate=0)
+                signal_gene = BollingerBandsSG()
+                trade_exec = SpreadOrderExecutor()
+                strategy = BacktestStrategy(market, signal_gene, trade_exec)
+
+#. Execute Optimize.
+
+        .. code-block:: python
+                # execute optimize
                 backtester = BayesianBacktester(strategy)
 
                 # Execute backtest
-                best_value, best_param = backtester.backtest(target_params, start_cash, n_calls=50)
+                best_value, best_param = backtester.backtest(target_params, start_cash, start_coin=0.01, n_calls=10)
 
 
-#. Execute backtest. See example/backtest_BollingerBands.py
+#. Execute backtest.
 
         .. code-block:: python
 
-                # Read data for test
-                price_data = read_prices_from_sheets("my_data/BitCoinPrice_interp.xlsx",
-                                        ["202405", "202406", "202407", "202408"], 5, use_cache=True)
-
-                # Set parameters
-                market = BacktestMarket(price_data)
-                strategy = BollingerBandsStrategy(market)
-                param = {
-                'window_size': 337,  # 移動平均の期間
-                'num_std_dev': 1.46,   # 標準偏差の倍率
-                'buy_count_limit': 5,
-                "one_order_quantity": 0.001
-                }
-                start_cash = 1e6
-
-                # Prepare Strategy
-                strategy.reset_all(param, start_cash)
-
-                # Execute backtest
+                strategy.reset_all(best_param, start_cash)
                 portfolio_result = strategy.backtest(hold_params=["upper_band", "lower_band"])
-                print(portfolio_result)
-
                 # Plot graph
-                strategy.create_backtest_graph(backend="plotly")
-
-        You can get result and graph.
-
-        .. code-block:: bash
-
-                $ python3 example/backtest_BollingerBands.py 
-                100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 40320/40320 [00:11<00:00, 3645.49it/s]
-                {'trade_count': 1700, 'cash': 281861.24843796133, 'position': 0.07344999999999792, 'total_value': 997966.1305175956}
-                save to plot_signal.png
-
-        .. image:: docs/result_plot_signal.png
+                strategy.create_backtest_graph(backend="matplotlib")
 
 #. Create yaml file for AWS.
 
         .. code-block:: bash
-                
-                $ python3 app/aws_build/build_all.py -d src -s BollingerBandsStrategy -o CloudFormationBB.yaml
+
+                $ python3 app/aws_build/build_all.py -s MACDSG -t NormalExecutor -o CloudFormationBB.yaml
 
 #. Deploy to AWS CloudFormationBB.yaml to CloudFormation
 

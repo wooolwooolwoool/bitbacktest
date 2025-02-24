@@ -23,8 +23,11 @@ def save_file(event):
 file_input.param.watch(save_file, 'value')
 
 # Add file upload and dropdowns to the layout
-page = pn.Row(
+page = pn.Column(
     pn.pane.Markdown("## Upload custom classes"),
+    pn.layout.Divider(margin=(-20, 0, 0, 0)),
     file_input,
+    pn.pane.Markdown("## Log"),
+    pn.layout.Divider(margin=(-20, 0, 0, 0)),
     logbox.widget,
 )

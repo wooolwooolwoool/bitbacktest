@@ -1,4 +1,0 @@
-Best Parameters: {'short_window': 35, 'long_window': 33, 'signal_window': 306, 'trade_rate_buy': 0.9836965121939946, 'trade_rate_sell': 1.020591680800064, 'one_order_quantity': 0.001}
-Best Total Value: 1015427.1269999992
-
-Best Parameters: {'window_size': 758, 'num_std_dev': 2.5, 'reverse': 0, 'one_order_quantity': 0.001, 'buy_count_limit': 20, 'Trade_Count': 966, 'Total_Value': 312079.5258750002}
